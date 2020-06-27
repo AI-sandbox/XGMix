@@ -9,7 +9,7 @@ import sklearn.metrics
 
 class XGMIX():
 
-    def __init__(self,chmlen,win,sws,num_anc,save,base_params=[20,4],smooth_params=[100,4],missing_value=2,cores=4,lr=0.1,reg_lambda=1):
+    def __init__(self,chmlen,win,sws,num_anc,save,base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1):
 
         self.chmlen = chmlen
         self.win = win
@@ -17,7 +17,7 @@ class XGMIX():
         self.sws = sws
         self.num_anc = num_anc
         self.trees,self.max_depth = base_params
-        self.missing = missing_value
+        self.missing = 2
         self.lr = lr
         self.reg_lambda = reg_lambda
 
@@ -131,6 +131,14 @@ class XGMIX():
 
         # Save model
         pickle.dump(self, open(self.save+"model.pkl", "wb" ))
+
+    def predict(self,tt):
+        n,_ = tt.shape
+        tt,_ = self.get_smooth_data(tt,np.zeros((2,2)))
+        y_preds = self.smooth.predict(tt)
+
+        return y_preds.reshape(n,len(self.base))
+
 
 def predict(tt,path):
     # data must match model's window size else error.
