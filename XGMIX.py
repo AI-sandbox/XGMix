@@ -134,7 +134,7 @@ class XGMIX():
 
     def predict(self,tt):
         n,_ = tt.shape
-        tt,_ = self.get_smooth_data(tt,np.zeros((2,2)))
+        tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
         y_preds = self.smooth.predict(tt)
 
         return y_preds.reshape(n,len(self.base))
@@ -143,7 +143,7 @@ class XGMIX():
 def predict(tt,path):
     # data must match model's window size else error.
     n,chmlen = tt.shape
-    xgm = pickle.load( open(path+"/model.pkl", "rb" ))
+    xgm = pickle.load( open(path, "rb" ))
     models = xgm.base
     model = xgm.smooth
 

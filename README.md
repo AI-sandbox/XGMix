@@ -1,8 +1,9 @@
 ### Welcome to XGMix code.
 
-1. First we have to train the base layers.
-2. Then we train the smooth layer.
+XGMIX.py defines the class XGMIX which is used to train and predict. There is also a predict function - which takes as input the input chromosome and path to model file. The gives out prediction for each window. The parameters of the model are also available in the .pkl file (like window size, smoothing window size, etc...).
 
-I will update the commands to do this shortly
+xgmix.ipynb walks through this process.
 
-XGMIXv1.py throws some snps away and also does not do padding - so, it has a lot of undesirable properties. 
+preprocess.py has some helper functions to load data, simulate missing values, etc... (preferred only for training).
+
+old\_xgmix.py throws some snps away and also does not do padding - so, it has a lot of undesirable properties. 
