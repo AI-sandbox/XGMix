@@ -9,8 +9,9 @@ import sklearn.metrics
 
 class XGMIX():
 
-    def __init__(self,win,sws,num_anc,save,base_params=[20,4],smooth_params=[100,4],missing_value=2,cores=4,lr=0.1,reg_lambda=1):
+    def __init__(self,chmlen,win,sws,num_anc,save,base_params=[20,4],smooth_params=[100,4],missing_value=2,cores=4,lr=0.1,reg_lambda=1):
 
+        self.chmlen = chmlen
         self.win = win
         self.save = save
         self.sws = sws
@@ -23,22 +24,29 @@ class XGMIX():
         self.s_trees,self.s_max_depth = smooth_params
         self.cores = cores
 
-        pickle.dump(self, open(self.save+"/config.pkl", "wb" ))
+        self.num_windows = self.chmlen//self.win
+        self.pad_size = (1+self.sws)//2
+
+        self.base = {}
+        self.smooth = None
 
 
     def _train_base(self,train,train_lab,val,val_lab):
 
-        models = {}
         train_accr=[]
         val_accr=[]
 
-        for idx in range(train.shape[1]):
+        for idx in range(self.num_windows):
 
             # a particular window across all examples
-            tt = train[:,idx,:]
-            vt = val[:,idx,:]
+            tt = train[:,idx*self.win:(idx+1)*self.win]
+            vt = val[:,idx*self.win:(idx+1)*self.win]
             ll_t = train_lab[:,idx]
             ll_v = val_lab[:,idx]
+
+            if idx == self.num_windows-1:
+                tt = train[:,idx*self.win:]
+                vt = val[:,idx*self.win:]
 
             # fit model
             model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
@@ -53,57 +61,48 @@ class XGMIX():
             val_metric = sklearn.metrics.accuracy_score(y_pred,ll_v)
             val_accr.append(val_metric)
 
-            models["model"+str(idx*self.win)] = model
+            self.base["model"+str(idx*self.win)] = model
 
             if idx%100 == 0:
-                print("Train iteration: {}, ".format(idx))
-                print("Training Accuracy: {}, Val Accuracy: {}".format(np.mean(train_accr), np.mean(val_accr)))
-
-        return models,train_accr,val_accr
-
-    def _gen_smooth_labels(self,ttl):
-        new_ttl = np.zeros((ttl.shape[0],ttl.shape[1]-self.sws))
-
-        sww = int(self.sws/2)
-        for ppl,data in enumerate(ttl):
-            new_ttl[ppl,:] = data[sww:-sww]
-        new_ttl = new_ttl.reshape(new_ttl.shape[0] * new_ttl.shape[1])
-        
-        return new_ttl
-
-    def _gen_smooth_data(self,tt,models):
-
-        params_per_window = self.num_anc # num_anc
-        tt_list = np.zeros((tt.shape[0],len(models),params_per_window))
-        for i in range(len(models)):
-            tt_list[:,i,:] = models["model"+str(i*self.win)].predict_proba(tt[:,i,:])
-
-        new_tt = np.zeros((tt.shape[0],tt.shape[1]-self.sws,params_per_window*(self.sws+1)))
-
-        for ppl,data in enumerate(tt_list):
-            for win in range(new_tt.shape[1]):
-                new_tt[ppl,win,:] = data[win:win+self.sws+1].ravel()
+                print("Windows done: {}, ".format(idx))
+                print("Base Training Accuracy: {}, Base Validation Accuracy: {}".format(np.mean(train_accr), np.mean(val_accr)))
 
 
-        d1,d2,d3 = new_tt.shape
-        new_tt = new_tt.reshape(d1*d2,d3)
-
-        return new_tt
+    def _get_smooth_data(self,data,labels):
 
 
-    def train(self,train,train_lab,val,val_lab,smoothlite=10000):
+        # get base output
+        base_out = np.zeros((data.shape[0],len(self.base),self.num_anc))
+        for i in range(len(self.base)):
 
-        # smoothlite: int or False. If False train smoother on all data, else train only on that number of contexts.
+            inp = data[:,i*self.win:(i+1)*self.win]
+            if i == len(self.base)-1:
+                inp = data[:,i*self.win:]
+            base_out[:,i,:] = self.base["model"+str(i*self.win)].predict_proba(inp)
 
-        models, base_taccr, base_vaccr = self._train_base(train,train_lab,val,val_lab)
-        pickle.dump(models, open(self.save+"/base.pkl", "wb" ))
 
-        tt = self._gen_smooth_data(train,models)
-        vv = self._gen_smooth_data(val,models)
+        # pad it.
+        pad_left = np.flip(base_out[:,0:self.pad_size,:],axis=1)
+        pad_right = np.flip(base_out[:,-self.pad_size:,:],axis=1)
 
-        # Get the labels for the windowed data
-        ttl = self._gen_smooth_labels(train_lab)
-        vvl = self._gen_smooth_labels(val_lab)
+        base_out_padded = np.concatenate([pad_left,base_out,pad_right],axis=1)
+
+        # window it.
+        windowed_data = np.zeros((data.shape[0],len(self.base),self.num_anc*self.sws))
+        for ppl,dat in enumerate(base_out_padded):
+            for win in range(windowed_data.shape[1]):
+                windowed_data[ppl,win,:] = dat[win:win+self.sws].ravel()
+
+
+        # reshape
+        return windowed_data.reshape(-1,windowed_data.shape[2]), labels.reshape(-1)
+
+
+    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=10000):
+
+
+        tt,ttl = self._get_smooth_data(train,train_lab)
+        vv,vvl = self._get_smooth_data(val,val_lab)
 
         # # Smooth lite option - to use less data for the smoother - faster if the data is good
         smoothlite = smoothlite if smoothlite else len(tt)
@@ -112,42 +111,35 @@ class XGMIX():
         ttl = ttl[indices]
 
         # Train model
-        model = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
+        self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
             learning_rate=self.lr,reg_lambda=self.reg_lambda,nthread=self.cores)
-        model.fit(tt,ttl)
+        self.smooth.fit(tt,ttl)
 
         # Evaluate model
-        y_pred = model.predict(vv)
+        y_pred = self.smooth.predict(vv)
+        t_pred = self.smooth.predict(tt)
 
-        print("Smooth Accuracy: {} ".format(sklearn.metrics.accuracy_score(y_pred,vvl)))
+        print("Smooth Training Accuracy: {} ".format(sklearn.metrics.accuracy_score(t_pred,ttl)))
+        print("Smooth Validation Accuracy: {} ".format(sklearn.metrics.accuracy_score(y_pred,vvl)))
+
+    def train(self,train,train_lab,val,val_lab,smoothlite=10000):
+
+        # smoothlite: int or False. If False train smoother on all data, else train only on that number of contexts.
+
+        self._train_base(train,train_lab,val,val_lab)
+        self._train_smooth(train,train_lab,val,val_lab,smoothlite=10000)
+
         # Save model
-        pickle.dump(model, open(self.save+"/smooth.pkl", "wb" ))
+        pickle.dump(self, open(self.save+"model.pkl", "wb" ))
 
 def predict(tt,path):
     # data must match model's window size else error.
-    models = pickle.load( open(path+"/base.pkl", "rb" ))
-    model = pickle.load( open(path+"/smooth.pkl", "rb" ))
-    xgm = pickle.load( open(path+"/config.pkl", "rb" ))
+    n,chmlen = tt.shape
+    xgm = pickle.load( open(path+"/model.pkl", "rb" ))
+    models = xgm.base
+    model = xgm.smooth
 
-    params_per_window = xgm.num_anc # num_anc
-    tt_list = np.zeros((tt.shape[0],len(models),params_per_window))
-    for i in range(len(models)):
-        tt_list[:,i,:] = models["model"+str(i*xgm.win)].predict_proba(tt[:,i,:])
+    tt,_ = xgm._get_smooth_data(tt,np.zeros((2,2)))
+    y_preds = model.predict(tt)
 
-    new_tt = np.zeros((tt.shape[0],tt.shape[1]-xgm.sws,params_per_window*(xgm.sws+1)))
-
-    for ppl,data in enumerate(tt_list):
-        for win in range(new_tt.shape[1]):
-            new_tt[ppl,win,:] = data[win:win+xgm.sws+1].ravel()
-
-
-    d1,d2,d3 = new_tt.shape
-    new_tt = new_tt.reshape(d1*d2,d3)
-
-
-    y_preds = model.predict(new_tt)
-
-    return y_preds.reshape(d1,d2)
-
-
-
+    return y_preds.reshape(n,len(models))
