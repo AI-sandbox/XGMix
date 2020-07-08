@@ -5,18 +5,23 @@ import pickle
 import argparse
 import logging
 import sklearn.metrics
+import sys
 
+from postprocess import read_vcf, snp_intersection, vcf_to_npy, get_effective_pred, write_fb
 
 class XGMIX():
 
-    def __init__(self,chmlen,win,sws,num_anc,save,base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1):
+    def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,population_order=None, save=None,
+                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1):
 
         self.chmlen = chmlen
         self.win = win
         self.save = save
         self.sws = sws
         self.num_anc = num_anc
-        self.trees,self.max_depth = base_params
+        self.snp_pos = snp_pos
+        self.population_order = population_order
+        self.trees, self.max_depth = base_params
         self.missing = 2
         self.lr = lr
         self.reg_lambda = reg_lambda
@@ -29,7 +34,6 @@ class XGMIX():
 
         self.base = {}
         self.smooth = None
-
 
     def _train_base(self,train,train_lab,val,val_lab):
 
@@ -70,7 +74,6 @@ class XGMIX():
 
     def _get_smooth_data(self,data,labels):
 
-
         # get base output
         base_out = np.zeros((data.shape[0],len(self.base),self.num_anc))
         for i in range(len(self.base)):
@@ -79,7 +82,6 @@ class XGMIX():
             if i == len(self.base)-1:
                 inp = data[:,i*self.win:]
             base_out[:,i,:] = self.base["model"+str(i*self.win)].predict_proba(inp)
-
 
         # pad it.
         pad_left = np.flip(base_out[:,0:self.pad_size,:],axis=1)
@@ -93,13 +95,11 @@ class XGMIX():
             for win in range(windowed_data.shape[1]):
                 windowed_data[ppl,win,:] = dat[win:win+self.sws].ravel()
 
-
         # reshape
         return windowed_data.reshape(-1,windowed_data.shape[2]), labels.reshape(-1)
 
 
-    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=10000):
-
+    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
         vv,vvl = self._get_smooth_data(val,val_lab)
@@ -127,10 +127,11 @@ class XGMIX():
         # smoothlite: int or False. If False train smoother on all data, else train only on that number of contexts.
 
         self._train_base(train,train_lab,val,val_lab)
-        self._train_smooth(train,train_lab,val,val_lab,smoothlite=10000)
+        self._train_smooth(train,train_lab,val,val_lab,smoothlite=smoothlite)
 
         # Save model
-        pickle.dump(self, open(self.save+"model.pkl", "wb" ))
+        if self.save is not None:
+            pickle.dump(self, open(self.save+"model.pkl", "wb" ))
 
     def predict(self,tt):
         n,_ = tt.shape
@@ -142,7 +143,7 @@ class XGMIX():
 
 def predict(tt,path):
     # data must match model's window size else error.
-    n,chmlen = tt.shape
+    n, chmlen = tt.shape
     xgm = pickle.load( open(path, "rb" ))
     models = xgm.base
     model = xgm.smooth
@@ -151,3 +152,40 @@ def predict(tt,path):
     y_preds = model.predict(tt)
 
     return y_preds.reshape(n,len(models))
+
+
+def main(args, model_path, verbose=True):
+
+    # Load pre-trained model
+    if verbose:
+        print("Loading pre-trained model...")
+    model = pickle.load(open(model_path,"rb"))
+
+    # Load and process user query file
+    if verbose:
+        print("Loading and processing query file...")
+    X_query, _, query_pos_eff, model_idx, _  = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
+
+    # predict
+    if verbose:
+        print("Making predictions for query file...")
+    label_pred_query = model.predict(X_query)
+
+    # limiting prediction to intersection of query SNPs and model SNPs, and writing it out
+    if verbose:
+        print("Writing predictions to disc...")
+    pred_eff = get_effective_pred(label_pred_query, model.chmlen, model.win, model_idx) 
+    write_fb(pred_eff, query_pos_eff, model.population_order, args.chm)
+    
+if __name__ == "__main__":
+
+    class Struct:
+        def __init__(self, **entries):
+            self.__dict__.update(entries)
+
+    args = {'query_file': sys.argv[1], 'chm': sys.argv[2]}
+    args = Struct(**args)
+
+    model_path= "./trained_models/missing_0/chm_"+args.chm+".pkl"
+
+    main(args, model_path)
