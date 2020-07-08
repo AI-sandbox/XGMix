@@ -1,6 +1,6 @@
 # XGMix-models
 
-XGMIX.py loads and makes use of the pre-trained models for a given query_file and a chromosome (temporarily . The model is trained on build37 references from the following continents: AFR NAT SAS AHG WAS EUR OCE EAS and predicts them in that order.
+XGMIX.py loads and makes use of the pre-trained models for a given query_file and a chromosome (temporarily . The model is trained on build37 references from the following continents: *AFR NAT SAS AHG WAS EUR OCE EAS* and predicts them in that order.
 
 ## TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
 
@@ -8,9 +8,9 @@ XGMIX.py loads and makes use of the pre-trained models for a given query_file an
 
 Usage:
 
-$ python3 XGMIX.py <query_file> <output_basename> <chr> 
+$ python3 XGMIX.py <query_file> <output_basename> <chr_nr>
 
-where <query_file> is a .vcf or .vcf.gz refrence file containing the query references and <chr> is the chromosome number.
+where <query_file> is a .vcf or .vcf.gz reference file containing the query references and <chr_nr> is the chromosome number.
 
 ## Output
 
