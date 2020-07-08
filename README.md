@@ -8,7 +8,9 @@ XGMIX.py loads and makes use of the pre-trained models for a given query_file an
 
 Usage:
 
-$ python3 XGMIX.py <query_file> <output_basename> <chm>
+$ python3 XGMIX.py <query_file> <output_basename> <chr> 
+
+where <query_file> is a .vcf or .vcf.gz refrence file containing the query references and <chr> is the chromosome number.
 
 ## Output
 
