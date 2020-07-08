@@ -81,12 +81,12 @@ def get_effective_pred(prediction, chm_len, window_size, model_idx):
 
     return pred_eff
 
-def write_fb(pred_eff, query_pos_eff, populations, chm):
+def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm):
     maternal, paternal = np.split(pred_eff, 2, axis=0)
     n_ind = maternal.shape[0]
     n_pos = len(query_pos_eff)
     n_col = 4 + 2*n_ind
-    with open("./prediction.tsv", 'w') as f:
+    with open("./"+output_basename+".tsv", 'w') as f:
         f.write("#reference_panel_population: " + " ".join(populations)+"\n")
         f.write("\t".join(["col_" + str(c) for c in range(n_col)])+"\n") # TODO: What are the column names?
         for p, pos in enumerate(query_pos_eff):

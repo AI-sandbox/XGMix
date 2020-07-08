@@ -175,7 +175,7 @@ def main(args, model_path, verbose=True):
     if verbose:
         print("Writing predictions to disc...")
     pred_eff = get_effective_pred(label_pred_query, model.chmlen, model.win, model_idx) 
-    write_fb(pred_eff, query_pos_eff, model.population_order, args.chm)
+    write_fb(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm)
     
 if __name__ == "__main__":
 
@@ -183,7 +183,11 @@ if __name__ == "__main__":
         def __init__(self, **entries):
             self.__dict__.update(entries)
 
-    args = {'query_file': sys.argv[1], 'chm': sys.argv[2]}
+    args = {
+        'query_file': sys.argv[1],
+        'output_basename': sys.argv[2],
+        'chm': sys.argv[3]
+    }
     args = Struct(**args)
 
     model_path= "./trained_models/missing_0/chm_"+args.chm+".pkl"
