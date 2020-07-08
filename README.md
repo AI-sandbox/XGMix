@@ -7,3 +7,5 @@ xgmix.ipynb walks through this process.
 preprocess.py has some helper functions to load data, simulate missing values, etc... (preferred only for training).
 
 old\_xgmix.py throws some snps away and also does not do padding - so, it has a lot of undesirable properties. 
+
+##### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., XGMix: Local-Ancestry Inference With Stacked XGBoost, International Conference on Learning Representations (ICLR, 2020, Workshop AI4H).
