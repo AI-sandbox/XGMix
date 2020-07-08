@@ -26,4 +26,5 @@ The first four columns specify
 - genetic marker's physical position in basepair units
 - genetic position in centiMorgans (Currently missing)
 - the genetic marker's numerical index in the rfmix genetic map input file (Currently missing)
-The remaining columns give the predicted reference panel population. A genotype has two haplotypes, so the number of probabilities for a genotype is 2*(number of reference panel populations). The number of columns in the file is 4 + 2*(number of genotypes)
+
+The remaining columns give the predicted reference panel population. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 4 + 2*(number of genotypes)
