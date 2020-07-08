@@ -52,6 +52,11 @@ def snp_intersection(pos1, pos2, verbose=False):
 
 
 def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
+    """
+    Converts vcf file to numpy matrix. If SNP position format is specified, then
+    accompany that format by filling in values of missing positions and ignoring
+    additional positions.
+    """
     
     # unzip and read vcf
     vcf_data = read_vcf(vcf_fname, verbose)
@@ -75,13 +80,21 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
     return mat_vcf_2d, vcf_pos, effective_vcf_pos, fmt_idx, vcf_idx
 
 def get_effective_pred(prediction, chm_len, window_size, model_idx):
-    win_idx = np.concatenate([np.arange(0, chm_len, window_size)[:-1],np.array([chm_len-1])])
-    query_window = [sum(win_idx < i) for i in model_idx]
+    """
+    Maps SNP indices to window number to find predictions for those SNPs
+    """
+    win_idx = np.concatenate([np.arange(0, chm_len, window_size)[1:-1],np.array([chm_len])])
+    query_window = [sum(win_idx <= i) for i in model_idx]
     pred_eff = prediction[:,query_window]
 
     return pred_eff
 
 def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm):
+    """
+    Writes out predictions for .fb.tsv file
+    TODO:
+        - vectorize for speed
+    """
     maternal, paternal = np.split(pred_eff, 2, axis=0)
     n_ind = maternal.shape[0]
     n_pos = len(query_pos_eff)
