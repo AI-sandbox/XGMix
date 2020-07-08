@@ -1,6 +1,7 @@
 import allel
 import gzip
 import numpy as np
+import torch
 
 def read_vcf(vcf_file, verbose=True):
     """
@@ -34,6 +35,7 @@ def snp_intersection(pos1, pos2, verbose=False):
     if len(intersection) == 0:
         print("Error: No matching SNPs between model and query file.")
         print("Exiting...")
+        exit()
 
     try:
         len_ratio2 = len(intersection)/len(pos2)
@@ -77,19 +79,27 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
         mat_vcf_2d = fill
         effective_vcf_pos = vcf_data['variants/POS'][chm_idx][vcf_idx]
 
-    return mat_vcf_2d, vcf_pos, effective_vcf_pos, fmt_idx, vcf_idx
+    # XGMix requires tensors for prediction
+    mat_vcf_2d = torch.tensor(mat_vcf_2d)
+
+    return mat_vcf_2d, vcf_pos, effective_vcf_pos, fmt_idx, vcf_idx, vcf_data['samples']
 
 def get_effective_pred(prediction, chm_len, window_size, model_idx):
     """
     Maps SNP indices to window number to find predictions for those SNPs
     """
+
+    # in the case of exact same SNPs
+    if chm_len == len(model_idx):
+        return(prediction)
+
     win_idx = np.concatenate([np.arange(0, chm_len, window_size)[1:-1],np.array([chm_len])])
     query_window = [sum(win_idx <= i) for i in model_idx]
     pred_eff = prediction[:,query_window]
 
     return pred_eff
 
-def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm):
+def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm, query_samples):
     """
     Writes out predictions for .fb.tsv file
     TODO:
@@ -98,10 +108,11 @@ def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm):
     maternal, paternal = np.split(pred_eff, 2, axis=0)
     n_ind = maternal.shape[0]
     n_pos = len(query_pos_eff)
-    n_col = 4 + 2*n_ind
+    n_col = 2*n_ind
     with open("./"+output_basename+".tsv", 'w') as f:
         f.write("#reference_panel_population: " + " ".join(populations)+"\n")
-        f.write("\t".join(["col_" + str(c) for c in range(n_col)])+"\n") # TODO: What are the column names?
+        f.write("Chromosome \t Genetic_Marker_Position \t Genetic_Marker_Position_cM \t Genetic_Map_Index \t")
+        f.write("\t".join([str(s) for s in np.concatenate([[s+"_1",s+"_2"] for s in query_samples])])+"\n")
         for p, pos in enumerate(query_pos_eff):
             f.write(chm)
             f.write("\t" + str(pos))

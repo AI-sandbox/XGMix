@@ -164,7 +164,7 @@ def main(args, model_path, verbose=True):
     # Load and process user query file
     if verbose:
         print("Loading and processing query file...")
-    X_query, _, query_pos_eff, model_idx, _  = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
+    X_query, _, query_pos_eff, model_idx, _, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
 
     # predict
     if verbose:
@@ -175,7 +175,7 @@ def main(args, model_path, verbose=True):
     if verbose:
         print("Writing predictions to disc...")
     pred_eff = get_effective_pred(label_pred_query, model.chmlen, model.win, model_idx) 
-    write_fb(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm)
+    write_fb(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm, query_samples)
     
 if __name__ == "__main__":
 
