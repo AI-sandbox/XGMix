@@ -19,6 +19,20 @@ def read_vcf(vcf_file, verbose=True):
 
     return data
 
+def sample_map_to_matrix(map_path):
+
+    ff = open(map_path, "r", encoding="latin1")
+    matrix = []
+    loc_func = lambda x: ord(x.rstrip("\n"))
+    for i in ff.readlines()[1:]:
+        row = i.split("\t")[2:]
+        row = np.vectorize(loc_func)(row)
+        matrix.append(row-49)
+    matrix = np.asarray(matrix).T
+    ff.close()
+
+    return matrix
+    
 def snp_intersection(pos1, pos2, verbose=False):
     
     # find indicese of intersection
@@ -101,10 +115,6 @@ def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm, query_s
     TODO:
         - vectorize for speed
     """
-    maternal, paternal = np.split(pred_eff, 2, axis=0)
-    n_ind = maternal.shape[0]
-    n_pos = len(query_pos_eff)
-    n_col = 2*n_ind
     with open("./"+output_basename+".tsv", 'w') as f:
         f.write("#reference_panel_population: " + " ".join(populations)+"\n")
         f.write("chm \t pos \t pos_cM \t genetic_map_index \t")
@@ -114,7 +124,7 @@ def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm, query_s
             f.write("\t" + str(pos))
             f.write("\t" + "-")
             f.write("\t" + "-")
-            for ind in range(n_ind):
-                f.write("\t" + str(maternal[ind, p]))
-                f.write("\t" + str(paternal[ind, p]))
+            for ind in range(0,pred_eff.shape[0],2):
+                f.write("\t" + str(pred_eff[ind, p]))
+                f.write("\t" + str(pred_eff[ind+1, p]))
             f.write("\n")
