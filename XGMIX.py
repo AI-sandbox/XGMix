@@ -166,15 +166,15 @@ def main(args, model_path, verbose=True):
         print("Loading and processing query file...")
     X_query, _, query_pos_eff, model_idx, _, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
 
-    # predict
+    # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
     if verbose:
         print("Making predictions for query file...")
-    label_pred_query = model.predict(X_query)
+    label_pred_query_window = model.predict(X_query)
+    pred_eff = get_effective_pred(label_pred_query_window, model.chmlen, model.win, model_idx) 
 
-    # limiting prediction to intersection of query SNPs and model SNPs, and writing it out
+    # writing the result to disc
     if verbose:
         print("Writing predictions to disc...")
-    pred_eff = get_effective_pred(label_pred_query, model.chmlen, model.win, model_idx) 
     write_fb(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm, query_samples)
     
 if __name__ == "__main__":
