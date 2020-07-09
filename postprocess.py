@@ -1,7 +1,6 @@
 import allel
 import gzip
 import numpy as np
-import torch
 
 def read_vcf(vcf_file, verbose=True):
     """
@@ -79,9 +78,6 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
         mat_vcf_2d = fill
         effective_vcf_pos = vcf_data['variants/POS'][chm_idx][vcf_idx]
 
-    # XGMix requires tensors for prediction
-    mat_vcf_2d = torch.tensor(mat_vcf_2d)
-
     return mat_vcf_2d, vcf_pos, effective_vcf_pos, fmt_idx, vcf_idx, vcf_data['samples']
 
 def get_effective_pred(prediction, chm_len, window_size, model_idx):
@@ -111,8 +107,8 @@ def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm, query_s
     n_col = 2*n_ind
     with open("./"+output_basename+".tsv", 'w') as f:
         f.write("#reference_panel_population: " + " ".join(populations)+"\n")
-        f.write("Chromosome \t Genetic_Marker_Position \t Genetic_Marker_Position_cM \t Genetic_Map_Index \t")
-        f.write("\t".join([str(s) for s in np.concatenate([[s+"_1",s+"_2"] for s in query_samples])])+"\n")
+        f.write("chm \t pos \t pos_cM \t genetic_map_index \t")
+        f.write("\t".join([str(s) for s in np.concatenate([[s+".0",s+".1"] for s in query_samples])])+"\n")
         for p, pos in enumerate(query_pos_eff):
             f.write(chm)
             f.write("\t" + str(pos))
