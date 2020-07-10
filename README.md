@@ -1,6 +1,6 @@
 # XGMix
 
-XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The model is trained on build37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels them as 0, 1, .., 7 respectively.
+XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The model is trained on build37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
 
 ### NOTE: TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
 
@@ -10,11 +10,9 @@ Usage:
 
 $ python3 XGMIX.py <query_file> <output_basename> <chr_nr>
 
-where <query_file> is a .vcf or .vcf.gz reference file containing the query references and <chr_nr> is the chromosome number.
+where <query_file> is a .vcf or .vcf.gz reference file containing the query references and <chr_nr> is the chromosome number. The predictions are written in <output_basename>.msp.tsv .
 
 ## Output
-
-The predictions are written in <output_basename>.tsv.
 
 The first line is a comment line, that specifies the order of subpopulations: eg:
 #reference_panel_population: golden_retriever labrador_retriever poodle poodle_small

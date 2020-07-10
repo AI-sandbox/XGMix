@@ -32,7 +32,7 @@ def sample_map_to_matrix(map_path):
     ff.close()
 
     return matrix
-    
+
 def snp_intersection(pos1, pos2, verbose=False):
     
     # find indicese of intersection
@@ -115,7 +115,7 @@ def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm, query_s
     TODO:
         - vectorize for speed
     """
-    with open("./"+output_basename+".tsv", 'w') as f:
+    with open("./"+output_basename+".msp.tsv", 'w') as f:
         f.write("#reference_panel_population: " + " ".join(populations)+"\n")
         f.write("chm \t pos \t pos_cM \t genetic_map_index \t")
         f.write("\t".join([str(s) for s in np.concatenate([[s+".0",s+".1"] for s in query_samples])])+"\n")
