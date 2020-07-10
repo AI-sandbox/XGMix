@@ -14,8 +14,9 @@ To use this script install:
 ## Usage
 
 Usage:
-
+```
 $ python3 XGMIX.py <query_file> <output_basename> <chr_nr>
+```
 
 where <query_file> is a .vcf or .vcf.gz reference file containing the query references and <chr_nr> is the chromosome number. The predictions are written in <output_basename>.msp.tsv .
 
