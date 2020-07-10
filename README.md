@@ -9,6 +9,7 @@ To use this script install:
 ```
   $ pip install xgboost
   $ pip install scikit-learn
+  $ pip install scikit-allel
 ```
 
 ## Usage
