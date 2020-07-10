@@ -1,8 +1,15 @@
-# XGMix
+# XGMix: Local-Ancestry Inference With Stacked XGBoost
 
 XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The model is trained on build37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
 
-### NOTE: TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
+
+## Requirements
+
+To use this script install:
+```
+  $ pip install xgboost
+  $ pip install scikit-learn
+```
 
 ## Usage
 
@@ -26,5 +33,11 @@ The first four columns specify
 - the genetic marker's numerical index in the rfmix genetic map input file (Currently missing)
 
 The remaining columns give the predicted reference panel population. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 4 + 2*(number of genotypes)
+
+## Pre-trained Models
+
+NOTE: TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
+
+## Cite
 
 #### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., XGMix: Local-Ancestry Inference With Stacked XGBoost, International Conference on Learning Representations (ICLR, 2020, Workshop AI4H).
