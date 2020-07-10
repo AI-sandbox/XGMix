@@ -99,7 +99,7 @@ def get_effective_pred(prediction, chm_len, window_size, model_idx):
     Maps SNP indices to window number to find predictions for those SNPs
     """
 
-    # in the case of exact same SNPs
+    # in the case of exact same SNPs, return original prediction
     if chm_len == len(model_idx):
         return(prediction)
 
@@ -109,9 +109,9 @@ def get_effective_pred(prediction, chm_len, window_size, model_idx):
 
     return pred_eff
 
-def write_fb(output_basename, pred_eff, query_pos_eff, populations, chm, query_samples):
+def write_msp_tsv(output_basename, pred_eff, query_pos_eff, populations, chm, query_samples):
     """
-    Writes out predictions for .fb.tsv file
+    Writes out predictions for .msp.tsv file
     TODO:
         - vectorize for speed
     """

@@ -7,7 +7,7 @@ import logging
 import sklearn.metrics
 import sys
 
-from postprocess import read_vcf, snp_intersection, vcf_to_npy, get_effective_pred, write_fb
+from postprocess import read_vcf, snp_intersection, vcf_to_npy, get_effective_pred, write_msp_tsv
 
 class XGMIX():
 
@@ -175,7 +175,7 @@ def main(args, model_path, verbose=True):
     # writing the result to disc
     if verbose:
         print("Writing predictions to disc...")
-    write_fb(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm, query_samples)
+    write_msp_tsv(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm, query_samples)
     
 if __name__ == "__main__":
 
