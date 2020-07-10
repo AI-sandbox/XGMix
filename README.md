@@ -1,6 +1,6 @@
-# XGMix-models
+# XGMix
 
-XGMIX.py loads and makes use of the pre-trained models for a given query_file and a chromosome (temporarily . The model is trained on build37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and predicts them in that order.
+XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The model is trained on build37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels them as 0, 1, .., 7 respectively.
 
 ### NOTE: TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
 
@@ -30,7 +30,3 @@ The first four columns specify
 The remaining columns give the predicted reference panel population. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 4 + 2*(number of genotypes)
 
 ##### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., XGMix: Local-Ancestry Inference With Stacked XGBoost, International Conference on Learning Representations (ICLR, 2020, Workshop AI4H).
-
-
-
-
