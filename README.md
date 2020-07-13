@@ -1,6 +1,6 @@
 # XGMix: Local-Ancestry Inference With Stacked XGBoost
 
-XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The model is trained on build37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
+XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The models are trained on build 37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
 
 
 ## Requirements
@@ -14,7 +14,7 @@ To use this script install:
 
 ## Usage
 
-Usage:
+For execution run:
 ```
 $ python3 XGMIX.py <query_file> <output_basename> <chr_nr>
 ```
@@ -37,6 +37,8 @@ The first four columns specify
 The remaining columns give the predicted reference panel population. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 4 + 2*(number of genotypes)
 
 ## Pre-trained Models
+
+The pre-trained models are trained on various SNP positions from a build 37 reference file. When making predictions, the input to the model is an intersection of the pre-trained model SNP positions and the SNP positions from the <query_file>. The set of positions that's only in the original training input is encoded as missing and the set of positions only in the <query_file> is discarded. When the script is executed, it will log the size of the intersection as the performance will depend on how much of the original positions are missing.
 
 NOTE: TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
 
