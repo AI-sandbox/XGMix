@@ -2,17 +2,12 @@
 
 XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The models are trained on build 37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
 
-
-## Requirements
-
-To use this script install:
-```
-  $ pip install xgboost
-  $ pip install scikit-learn
-  $ pip install scikit-allel
-```
-
 ## Usage
+
+The dependencies are listed in *requirements.txt*. Assuming pip is already installed, they can be installed via
+```
+$ pip install -r requirements.txt
+```
 
 For execution run:
 ```
