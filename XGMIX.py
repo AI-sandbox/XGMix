@@ -179,6 +179,12 @@ def main(args, model_path, verbose=True):
     
 if __name__ == "__main__":
 
+    if len(sys.argv)!=4:
+        print("Error: Not correct number of arguments. Usage:")
+        print("   $ python3 XGMIX.py <query_file> <output_basename> <chr_nr>")
+        sys.exit(0)
+
+
     class Struct:
         def __init__(self, **entries):
             self.__dict__.update(entries)
