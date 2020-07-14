@@ -98,7 +98,6 @@ def get_effective_pred(prediction, chm_len, window_size, model_idx):
     """
     Maps SNP indices to window number to find predictions for those SNPs
     """
-
     win_idx = np.concatenate([np.arange(0, chm_len, window_size)[1:-1],np.array([chm_len])])
     query_window = [sum(win_idx <= i) for i in model_idx]
     pred_eff = prediction[:,query_window]

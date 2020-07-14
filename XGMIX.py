@@ -17,7 +17,7 @@ class XGMIX():
         self.chmlen = chmlen
         self.win = win
         self.save = save
-        self.sws = sws
+        self.sws = sws if sws %2 else sws-1
         self.num_anc = num_anc
         self.snp_pos = snp_pos
         self.population_order = population_order
@@ -68,7 +68,7 @@ class XGMIX():
             self.base["model"+str(idx*self.win)] = model
 
             if idx%100 == 0:
-                print("Windows done: {}, ".format(idx))
+                print("Windows done: {}/{}, ".format(idx, self.num_windows))
                 print("Base Training Accuracy: {}, Base Validation Accuracy: {}".format(np.mean(train_accr), np.mean(val_accr)))
 
 
