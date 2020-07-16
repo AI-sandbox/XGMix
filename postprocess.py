@@ -1,6 +1,10 @@
 import allel
+from collections import Counter
 import gzip
 import numpy as np
+import pandas as pd
+from scipy.interpolate import interp1d
+import sys
 
 def read_vcf(vcf_file, verbose=True):
     """
@@ -48,14 +52,14 @@ def snp_intersection(pos1, pos2, verbose=False):
     if len(intersection) == 0:
         print("Error: No matching SNPs between model and query file.")
         print("Exiting...")
-        exit()
+        sys.exit(0)
 
     try:
         len_ratio2 = len(intersection)/len(pos2)
     except ZeroDivisionError:
         print("Error: No SNPs of specified chromosome found in query file.")
         print("Exiting...")
-        exit()
+        sys.exit(0)
 
     if verbose:
         print("Number of SNPs from model:", len(pos1))
@@ -98,28 +102,66 @@ def get_effective_pred(prediction, chm_len, window_size, model_idx):
     """
     Maps SNP indices to window number to find predictions for those SNPs
     """
-    win_idx = np.concatenate([np.arange(0, chm_len, window_size)[1:-1],np.array([chm_len])])
-    query_window = [sum(win_idx <= i) for i in model_idx]
-    pred_eff = prediction[:,query_window]
 
-    return pred_eff
+    # expanding prediction
+    ext = np.repeat(prediction, window_size, axis=1)
 
-def write_msp_tsv(output_basename, pred_eff, query_pos_eff, populations, chm, query_samples):
-    """
-    Writes out predictions for .msp.tsv file
-    TODO:
-        - vectorize for speed
-    """
+    # handling remainder
+    rem_len = chm_len-ext.shape[1]
+    ext_rem = np.tile(prediction[:,-1], [rem_len,1]).T
+    ext = np.concatenate([ext, ext_rem], axis=1)
+
+    # return relevant positions
+    return ext[:, model_idx]
+
+
+def get_msp_data(chm, pred_wind, model_pos, query_pos, n_wind, wind_size, genetic_map_file):
+
+    model_chm_len = len(model_pos)
+    
+    gen_map_df = pd.read_csv(genetic_map_file, sep="\t", comment="#", header=None, dtype="str")
+    gen_map_df.columns = ["chm", "pos", "pos_cm"]
+    gen_map_df = gen_map_df.astype({'chm': str, 'pos': np.int64, 'pos_cm': np.float64})
+    gen_map_df = gen_map_df[gen_map_df.chm == chm]
+    
+    # chm
+    chm_array = [chm]*n_wind
+
+    # start and end pyshical positions
+    spos_idx = np.arange(0, model_chm_len, wind_size)[:-1]
+    epos_idx = np.concatenate([np.arange(0, model_chm_len, wind_size)[1:-1],np.array([model_chm_len])])-1
+    spos = model_pos[spos_idx]
+    epos = model_pos[epos_idx]
+
+    # start and end positions in cM (using linear interpolation)
+    f = interp1d(gen_map_df.pos, gen_map_df.pos_cm, fill_value="extrapolate") 
+    sgpos = np.round(f(spos),5)
+    egpos = np.round(f(epos),5)
+
+    # number of query snps in interval
+    wind_index = [min(n_wind-1, np.where(q == sorted(np.concatenate([epos, [q]])))[0][0]) for q in query_pos]
+    window_count = Counter(wind_index)
+    n_snps = [window_count[w] for w in range(n_wind)]
+
+    # Concat with prediction table
+    meta = np.array([chm_array, spos, epos, sgpos, egpos, n_snps]).T
+    msp_data = np.concatenate([meta, pred_wind.T], axis=1)
+    msp_data = msp_data.astype(str)
+
+    return msp_data
+    
+def write_msp_tsv(output_basename, msp_data, populations, query_samples):
+    
+    meta_col_names = ["chm", "spos", "epos", "sgpos", "egpos", "n snps"]
+    
     with open("./"+output_basename+".msp.tsv", 'w') as f:
-        f.write("#reference_panel_population: " + " ".join(populations)+"\n")
-        f.write("chm \t pos \t pos_cM \t genetic_map_index \t")
+        # first line (comment)
+        f.write("#Subpopulation order/codes: ")
+        f.write("\t".join([str(pop)+"="+str(i) for i, pop in enumerate(populations)])+"\n")
+        # second line (comment/header)
+        f.write("#"+"\t".join(meta_col_names) + "\t")
         f.write("\t".join([str(s) for s in np.concatenate([[s+".0",s+".1"] for s in query_samples])])+"\n")
-        for p, pos in enumerate(query_pos_eff):
-            f.write(chm)
-            f.write("\t" + str(pos))
-            f.write("\t" + "-")
-            f.write("\t" + "-")
-            for ind in range(0,pred_eff.shape[0],2):
-                f.write("\t" + str(pred_eff[ind, p]))
-                f.write("\t" + str(pred_eff[ind+1, p]))
+        # rest of the lines (data)
+        for l in range(msp_data.shape[0]):
+            f.write("\t".join(msp_data[l,:]))
             f.write("\n")
