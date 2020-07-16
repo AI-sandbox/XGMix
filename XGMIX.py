@@ -1,11 +1,12 @@
+import argparse
+import gzip
+import logging
 import numpy as np
 import os
-import xgboost as xgb
 import pickle
-import argparse
-import logging
 import sklearn.metrics
 import sys
+import xgboost as xgb
 
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 
@@ -153,13 +154,21 @@ def predict(tt,path):
 
     return y_preds.reshape(n,len(models))
 
+def load_model(path_to_model):
+    if path_to_model[-3:]==".gz":
+        with gzip.open(path_to_model, 'rb') as unzipped:
+            model = pickle.load(unzipped)
+    else:
+        model = pickle.load(open(path_to_model,"rb"))
+    return model
+
 
 def main(args, verbose=True):
 
     # Load pre-trained model
     if verbose:
         print("Loading pre-trained model...")
-    model = pickle.load(open(args.path_to_model,"rb"))
+    model = load_model(args.path_to_model)
 
     # Load and process user query file
     if verbose:
