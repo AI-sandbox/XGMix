@@ -7,7 +7,7 @@ import logging
 import sklearn.metrics
 import sys
 
-from postprocess import read_vcf, snp_intersection, vcf_to_npy, get_effective_pred, write_msp_tsv
+from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 
 class XGMIX():
 
@@ -154,34 +154,35 @@ def predict(tt,path):
     return y_preds.reshape(n,len(models))
 
 
-def main(args, model_path, verbose=True):
+def main(args, verbose=True):
 
     # Load pre-trained model
     if verbose:
         print("Loading pre-trained model...")
-    model = pickle.load(open(model_path,"rb"))
+    model = pickle.load(open(args.path_to_model,"rb"))
 
     # Load and process user query file
     if verbose:
         print("Loading and processing query file...")
-    X_query, _, query_pos_eff, model_idx, _, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
+    X_query, query_pos, query_pos_eff, model_idx, _, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
 
     # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
     if verbose:
         print("Making predictions for query file...")
     label_pred_query_window = model.predict(X_query)
-    pred_eff = get_effective_pred(label_pred_query_window, model.chmlen, model.win, model_idx) 
 
     # writing the result to disc
     if verbose:
-        print("Writing predictions to disc...")
-    write_msp_tsv(args.output_basename, pred_eff, query_pos_eff, model.population_order, args.chm, query_samples)
-    
+        print("Gathering data and writing predictions to disc...")
+    msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos, query_pos,
+                            model.num_windows, model.win, args.genetic_map_file)
+    write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
+
 if __name__ == "__main__":
 
-    if len(sys.argv)!=4:
+    if len(sys.argv)!=6:
         print("Error: Not correct number of arguments. Usage:")
-        print("   $ python3 XGMIX.py <query_file> <output_basename> <chr_nr>")
+        print("   $ python3 XGMIX.py <query_file> <path_to_model> <genetic_map_file> <output_basename> <chr_nr>")
         sys.exit(0)
 
 
@@ -191,11 +192,11 @@ if __name__ == "__main__":
 
     args = {
         'query_file': sys.argv[1],
-        'output_basename': sys.argv[2],
-        'chm': sys.argv[3]
+        'path_to_model': sys.argv[2],
+        'genetic_map_file': sys.argv[3],
+        'output_basename': sys.argv[4],
+        'chm': sys.argv[5],
     }
     args = Struct(**args)
 
-    model_path= "./trained_models/missing_0/chm_"+args.chm+".pkl"
-
-    main(args, model_path)
+    main(args)
