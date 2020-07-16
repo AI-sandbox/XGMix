@@ -1,6 +1,8 @@
 # XGMix: Local-Ancestry Inference With Stacked XGBoost
 
-XGMIX.py loads and uses pre-trained XGMix models to predict reference panels for a given query_file and chromosome. The models are trained on build 37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
+This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method.
+
+XGMIX.py loads and uses pre-trained XGMix models to predict the ancestry for a given query_file (VCF) and chromosome number. The models are trained on build 37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
 
 ## Usage
 
@@ -39,4 +41,31 @@ NOTE: TEMPORARILY ONLY OFFERING CHROMOSOME 21 and 22
 
 ## Cite
 
-#### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., XGMix: Local-Ancestry Inference With Stacked XGBoost, International Conference on Learning Representations (ICLR, 2020, Workshop AI4H).
+#### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., "XGMix: Local-Ancestry Inference With Stacked XGBoost," International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4H).
+
+https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1
+
+```
+@article{kumar2020xgmix,
+  title={XGMix: Local-Ancestry Inference With Stacked XGBoost},
+  author={Kumar, Arvind and Montserrat, Daniel Mas and Bustamante, Carlos and Ioannidis, Alexander},
+  journal={International Conference of Learning Representations Workshops, AI4H},
+  year={2020}
+}
+```
+
+#### You can also include its companion paper: Montserrat, D.M., Kumar, A., Bustamante, C. and Ioannidis, A., "Addressing Ancestry Disparities in Genomic Medicine: A Geographic-aware Algorithm," International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4CC).
+
+https://arxiv.org/pdf/2004.12053.pdf
+
+```
+@article{montserrat2020addressing,
+  title={Addressing Ancestry Disparities in Genomic Medicine: A Geographic-aware Algorithm},
+  author={Montserrat, Daniel Mas and Kumar, Arvind and Bustamante, Carlos and Ioannidis, Alexander},
+  journal={International Conference of Learning Representations Workshops, AI4CC},
+  year={2020}
+}
+```
+
+
+
