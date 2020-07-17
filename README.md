@@ -17,7 +17,7 @@ $ python3 XGMIX.py <query_file> <path_to_model> <genetic_map_file> <output_basen
 ```
 
 where 
-- *<query_file>* is a .vcf or .vcf.gz reference file containing the query sequences (see example in the **/demo** folder)
+- *<query_file>* is a .vcf or .vcf.gz file containing the query sequences (see example in the **/demo** folder)
 - *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
 - *<genetic_map_file>* is the genetic map file (see example in the **/demo** folder)
 - *<output_basename>*.msp.tsv. is where the predictions are written (see **Output** below)
@@ -25,18 +25,18 @@ where
 
 ## Output
 
-The first line is a comment line, that specifies the order of subpopulations: eg:
-#reference_panel_population: golden_retriever labrador_retriever poodle poodle_small
+The first line is a comment line, that specifies the order and encoding of populations: eg:
+#Sub_population order/code: golden_retriever=0 labrador_retriever=1 poodle poodle_small=2
 
 The second line specifies the column names, and every following line marks the genome position.
 
-The first four columns specify
+The first 6 columns specify
 - the chromosome
-- genetic marker's physical position in basepair units
-- genetic position in centiMorgans (Currently missing)
-- the genetic marker's numerical index in the genetic map file (Currently missing)
+- interval of genetic marker's physical position in basepair units (one column represents the starting point and one the end point)
+- interval of genetic position in centiMorgans (one column represents the starting point and one the end point)
+- number of *<query_file>* SNP positions that are included in interval
 
-The remaining columns give the predicted reference panel population. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 4 + 2*(number of genotypes)
+The remaining columns give the predicted reference panel population for the given interval. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 6 + 2*(number of genotypes)
 
 ## Pre-trained Models
 
