@@ -39,7 +39,7 @@ def sample_map_to_matrix(map_path):
 
 def snp_intersection(pos1, pos2, verbose=False):
     
-    # find indicese of intersection
+    # find indices of intersection
     idx1, idx2 = [], []
     for i2, p2 in enumerate(pos2):
         match = np.where(pos1==p2)[0]
@@ -47,7 +47,6 @@ def snp_intersection(pos1, pos2, verbose=False):
             idx1.append(int(match))
             idx2.append(i2)
 
-    
     intersection = set(pos1) & set(pos2)
     if len(intersection) == 0:
         print("Error: No matching SNPs between model and query file.")
@@ -55,7 +54,7 @@ def snp_intersection(pos1, pos2, verbose=False):
         sys.exit(0)
 
     try:
-        len_ratio2 = len(intersection)/len(pos2)
+        intersect_model_ratio = len(intersection)/len(pos1)
     except ZeroDivisionError:
         print("Error: No SNPs of specified chromosome found in query file.")
         print("Exiting...")
@@ -65,7 +64,7 @@ def snp_intersection(pos1, pos2, verbose=False):
         print("Number of SNPs from model:", len(pos1))
         print("Number of SNPs from file:", len(pos2))
         print("Number of intersecting SNPs:", len(intersection))
-        print("Ratio of matching SNPs from file:", round(len_ratio2,4))
+        print("Ratio of matching SNPs from file:", round(intersect_model_ratio,4))
 
     return idx1, idx2
 
@@ -80,11 +79,13 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
     # unzip and read vcf
     vcf_data = read_vcf(vcf_fname, verbose)
     chm_idx = vcf_data['variants/CHROM']==str(chm)
-    
+
     # convert to np array 
     chm_data = vcf_data["calldata/GT"][chm_idx,:,:]
     chm_len, nout, _ = chm_data.shape
     mat_vcf_2d = chm_data.reshape(chm_len,nout*2).T
+
+    # read varients and adjust
     
     # matching SNP positions with format
     vcf_pos = None
@@ -133,8 +134,9 @@ def get_msp_data(chm, pred_wind, model_pos, query_pos, n_wind, wind_size, geneti
     spos = model_pos[spos_idx]
     epos = model_pos[epos_idx]
 
-    # start and end positions in cM (using linear interpolation)
-    f = interp1d(gen_map_df.pos, gen_map_df.pos_cm, fill_value="extrapolate") 
+    # start and end positions in cM (using linear interpolation, truncate ends of map file)
+    end_pts = tuple(np.array(gen_map_df.pos_cm)[[0,-1]])
+    f = interp1d(gen_map_df.pos, gen_map_df.pos_cm, fill_value=end_pts) 
     sgpos = np.round(f(spos),5)
     egpos = np.round(f(epos),5)
 
