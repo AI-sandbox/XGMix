@@ -38,6 +38,11 @@ def sample_map_to_matrix(map_path):
     return matrix
 
 def snp_intersection(pos1, pos2, verbose=False):
+
+    if len(pos2) == 0:
+        print("Error: No SNPs of specified chromosome found in query file.")
+        print("Exiting...")
+        sys.exit(0)
     
     # find indices of intersection
     idx1, idx2 = [], []
@@ -53,18 +58,13 @@ def snp_intersection(pos1, pos2, verbose=False):
         print("Exiting...")
         sys.exit(0)
 
-    try:
-        intersect_model_ratio = len(intersection)/len(pos1)
-    except ZeroDivisionError:
-        print("Error: No SNPs of specified chromosome found in query file.")
-        print("Exiting...")
-        sys.exit(0)
-
     if verbose:
         print("Number of SNPs from model:", len(pos1))
         print("Number of SNPs from file:", len(pos2))
         print("Number of intersecting SNPs:", len(intersection))
-        print("Ratio of matching SNPs from file:", round(intersect_model_ratio,4))
+        intersect_percentage = round(len(intersection)/len(pos1),4)*100
+        print("Percentage of model SNPs covered by query file: ",
+              intersect_percentage, "%", sep="")
 
     return idx1, idx2
 
@@ -101,7 +101,7 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt, snp_ref_fmt, miss_fill=2, verbose=Tr
     if swap.any() and verbose:
         swap_n = sum(swap)
         swap_p = round(np.mean(swap)*100,4)
-        print("Found ", swap_n, " (", swap_p, "%) different reference variants.", sep="")
+        print("Found ", swap_n, " (", swap_p, "%) different reference variants. Adjusting...", sep="")
     # - swapping 0s and 1s where inconsistant
     fmt_swap_idx = np.array(fmt_idx)[swap]  # swap-index at model format
     mat_vcf_2d[:,fmt_swap_idx] = (mat_vcf_2d[:,fmt_swap_idx]-1)*(-1)
