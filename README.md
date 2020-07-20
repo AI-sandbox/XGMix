@@ -46,7 +46,7 @@ When making predictions, the input to the model is an intersection of the pre-tr
 
 ## Cite
 
-#### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., "XGMix: Local-Ancestry Inference With Stacked XGBoost," International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4H).
+#### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., "XGMix: Local-Ancestry Inference With Stacked XGBoost," International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4AH).
 
 https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1
 
@@ -54,7 +54,7 @@ https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1
 @article{kumar2020xgmix,
   title={XGMix: Local-Ancestry Inference With Stacked XGBoost},
   author={Kumar, Arvind and Montserrat, Daniel Mas and Bustamante, Carlos and Ioannidis, Alexander},
-  journal={International Conference of Learning Representations Workshops, AI4H},
+  journal={International Conference of Learning Representations Workshops, AI4AH},
   year={2020}
 }
 ```
