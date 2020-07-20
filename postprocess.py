@@ -69,7 +69,7 @@ def snp_intersection(pos1, pos2, verbose=False):
     return idx1, idx2
 
 
-def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
+def vcf_to_npy(vcf_fname, chm, snp_pos_fmt, snp_ref_fmt, miss_fill=2, verbose=True):
     """
     Converts vcf file to numpy matrix. If SNP position format is specified, then
     accompany that format by filling in values of missing positions and ignoring
@@ -80,24 +80,37 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt=None, miss_fill=2, verbose=True):
     vcf_data = read_vcf(vcf_fname, verbose)
     chm_idx = vcf_data['variants/CHROM']==str(chm)
 
-    # convert to np array 
+    # matching SNP positions with standard format (finding intersection)
+    vcf_pos = vcf_data['variants/POS'][chm_idx]
+    fmt_idx, vcf_idx = snp_intersection(snp_pos_fmt, vcf_pos, verbose=verbose)
+    
+    # reshape binary represntation into 2D np array 
     chm_data = vcf_data["calldata/GT"][chm_idx,:,:]
     chm_len, nout, _ = chm_data.shape
-    mat_vcf_2d = chm_data.reshape(chm_len,nout*2).T
+    chm_data = chm_data.reshape(chm_len,nout*2).T
 
-    # read varients and adjust
-    
-    # matching SNP positions with format
-    vcf_pos = None
-    if snp_pos_fmt is not None:
-        vcf_pos = vcf_data['variants/POS'][chm_idx]
-        fmt_idx, vcf_idx = snp_intersection(snp_pos_fmt, vcf_pos, verbose=verbose)
-        fill = np.full((nout*2, len(snp_pos_fmt)), miss_fill)
-        fill[:,fmt_idx] = mat_vcf_2d[:,vcf_idx]
-        mat_vcf_2d = fill
-        effective_vcf_pos = vcf_data['variants/POS'][chm_idx][vcf_idx]
+    # only use intersection of variants, fill in missing values
+    fill = np.full((nout*2, len(snp_pos_fmt)), miss_fill)
+    fill[:,fmt_idx] = chm_data[:,vcf_idx]
+    mat_vcf_2d = fill
 
-    return mat_vcf_2d, vcf_pos, effective_vcf_pos, fmt_idx, vcf_idx, vcf_data['samples']
+    # adjust binary matrix to match model format
+    # - find inconsistent references
+    vcf_ref = vcf_data['variants/REF'][chm_idx][vcf_idx]
+    swap = vcf_ref != snp_ref_fmt[fmt_idx] # where to swap w.r.t. intersection
+    if swap.any() and verbose:
+        swap_n = sum(swap)
+        swap_p = round(np.mean(swap)*100,4)
+        print("Found ", swap_n, " (", swap_p, "%) different reference variants.", sep="")
+    # - swapping 0s and 1s where inconsistant
+    fmt_swap_idx = np.array(fmt_idx)[swap]  # swap-index at model format
+    mat_vcf_2d[:,fmt_swap_idx] = (mat_vcf_2d[:,fmt_swap_idx]-1)*(-1)
+
+    # make sure all missing values are encoded as miss_fill
+    missing_mask = np.logical_and(mat_vcf_2d != 0, mat_vcf_2d != 1)
+    mat_vcf_2d[missing_mask] = miss_fill
+
+    return mat_vcf_2d, vcf_pos, fmt_idx, vcf_data['samples']
 
 def get_effective_pred(prediction, chm_len, window_size, model_idx):
     """

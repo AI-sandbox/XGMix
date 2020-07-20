@@ -173,7 +173,8 @@ def main(args, verbose=True):
     # Load and process user query file
     if verbose:
         print("Loading and processing query file...")
-    X_query, query_pos, query_pos_eff, model_idx, _, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, verbose=True)
+    X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos,
+                                                              model.ref, verbose=verbose)
 
     # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
     if verbose:
