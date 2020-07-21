@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 import sys
 
-def read_vcf(vcf_file, verbose=True):
+def read_vcf(vcf_file, verbose=False):
     """
     Reads vcf files into a dictionary
     fields="*" extracts more information, take out if ruled unecessary
@@ -59,11 +59,11 @@ def snp_intersection(pos1, pos2, verbose=False):
         sys.exit(0)
 
     if verbose:
-        print("Number of SNPs from model:", len(pos1))
-        print("Number of SNPs from file:", len(pos2))
-        print("Number of intersecting SNPs:", len(intersection))
+        print("- Number of SNPs from model:", len(pos1))
+        print("- Number of SNPs from file:",  len(pos2))
+        print("- Number of intersecting SNPs:", len(intersection))
         intersect_percentage = round(len(intersection)/len(pos1),4)*100
-        print("Percentage of model SNPs covered by query file: ",
+        print("- Percentage of model SNPs covered by query file: ",
               intersect_percentage, "%", sep="")
 
     return idx1, idx2
@@ -77,7 +77,7 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt, snp_ref_fmt, miss_fill=2, verbose=Tr
     """
     
     # unzip and read vcf
-    vcf_data = read_vcf(vcf_fname, verbose)
+    vcf_data = read_vcf(vcf_fname)
     chm_idx = vcf_data['variants/CHROM']==str(chm)
 
     # matching SNP positions with standard format (finding intersection)
@@ -101,7 +101,7 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt, snp_ref_fmt, miss_fill=2, verbose=Tr
     if swap.any() and verbose:
         swap_n = sum(swap)
         swap_p = round(np.mean(swap)*100,4)
-        print("Found ", swap_n, " (", swap_p, "%) different reference variants. Adjusting...", sep="")
+        print("- Found ", swap_n, " (", swap_p, "%) different reference variants. Adjusting...", sep="")
     # - swapping 0s and 1s where inconsistant
     fmt_swap_idx = np.array(fmt_idx)[swap]  # swap-index at model format
     mat_vcf_2d[:,fmt_swap_idx] = (mat_vcf_2d[:,fmt_swap_idx]-1)*(-1)

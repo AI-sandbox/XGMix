@@ -1,27 +1,52 @@
 # XGMix: Local-Ancestry Inference With Stacked XGBoost
 
-This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method.
+This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method. 
+XGMIX.py can be used in two ways:
+- training a model from scratch using provided training data or 
+- loading a pre-trained XGMix model (see **Pre-Trained Models** below)
+In both cases the models are used to infer local ancestry for provided query data.
 
-XGMIX.py loads and uses pre-trained XGMix models to predict the ancestry for a given query_file (VCF) and chromosome number. The models are trained on hg build 37 references from the following biogeographic regions: *Subsaharan African (AFR), African Hunter and Gatherer (AHG), East Asian (EAS), European (EUR), Native American (NAT), Oceanian (OCE), South Asian (SAS), and West Asian (WAS)* and labels and predicts them as 0, 1, .., 7 respectively.
-
-## Usage
-
+## Dependencies
 The dependencies are listed in *requirements.txt*. Assuming pip is already installed, they can be installed via
 ```
 $ pip install -r requirements.txt
 ```
+If using the tool for training a model, **bcftools** must be installed and available in the PATH environment setting.
 
-For execution run:
+## Usage
+
+### When Using Pre-Trained Models
+XGMIX.py loads and uses pre-trained XGMix models to predict the ancestry for a given *<query_file>* and chromosome number. 
+
+To execute the program with a pre-trained model run:
 ```
-$ python3 XGMIX.py <query_file> <path_to_model> <genetic_map_file> <output_basename> <chr_nr>
+$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <path_to_model> 
 ```
 
 where 
-- *<query_file>* is a .vcf or .vcf.gz file containing the query sequences (see example in the **/demo** folder)
-- *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
-- *<genetic_map_file>* is the genetic map file (see example in the **/demo** folder)
-- *<output_basename>*.msp.tsv. is where the predictions are written (see **Output** below)
+- *<query_file>* is a .vcf or .vcf.gz file containing the query haplotypes which are to be analyzed (see example in the **/demo_data** folder)
+- *<genetic_map_file>* is the genetic map file (see example in the **/demo_data** folder)
+- *<output_basename>*.msp.tsv. is where the predictions are written (see details in **Output** below and an example in the **/demo_data** folder)
 - *<chr_nr>* is the chromosome number
+- *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
+
+### When Training a Model From Scratch
+XGMix.py loads data from the *<reference_file>* 
+
+To execute the program when training a model run:
+```
+$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <reference_file> <sample_map_file>
+```
+
+where the first 4 arguments are described above in the pre-trained setting and 
+-*<reference_file>* is a .vcf or .vcf.gz file containing the reference haplotypes (in any order)
+-*<sample_map_file>* is a sample map file matching reference samples to their respective reference populations
+
+The program uses these two files as input into (rfmix's)[https://github.com/slowkoni/rfmix] simulation to create training data for the model.
+
+### Advanced Options
+More advanced configuration settings can be seen and changed in *config.py*. 
+They include general settings, simulation settings and training settings but more details are given in the file.
 
 ## Output
 
@@ -38,11 +63,13 @@ The first 6 columns specify
 
 The remaining columns give the predicted reference panel population for the given interval. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 6 + 2*(number of genotypes)
 
-## Pre-trained Models
+## Pre-Trained Models
 
 Pre-trained models are available for download from [XGMix-models](https://github.com/AI-sandbox/XGMix-models).
 
 When making predictions, the input to the model is an intersection of the pre-trained model SNP positions and the SNP positions from the <query_file>. That means that the set of positions that's only in the original training input is encoded as missing and the set of positions only in the <query_file> is discarded. When the script is executed, it will log the intersection-ratio as the performance will depend on how much of the original positions are missing. When the intersection is low, we recommend using a model trained with high percentage of missing data.
+
+The models are trained on hg build 37 references from the following biogeographic regions: *Subsaharan African (AFR), African Hunter and Gatherer (AHG), East Asian (EAS), European (EUR), Native American (NAT), Oceanian (OCE), South Asian (SAS), and West Asian (WAS)* and labels and predicts them as 0, 1, .., 7 respectively.
 
 ## Cite
 
