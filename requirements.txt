@@ -1,8 +1,13 @@
+cycler==0.10.0
 Cython==0.29.21
 dask==2.20.0
 joblib==0.16.0
+kiwisolver==1.2.0
+matplotlib==3.3.0
 numpy==1.19.0
 pandas==1.0.5
+Pillow==7.2.0
+pyparsing==2.4.7
 python-dateutil==2.8.1
 pytz==2020.1
 PyYAML==5.3.1
