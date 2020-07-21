@@ -13,15 +13,15 @@ $ pip install -r requirements.txt
 
 For execution run:
 ```
-$ python3 XGMIX.py <query_file> <path_to_model> <genetic_map_file> <output_basename> <chr_nr>
+$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <path_to_model> 
 ```
 
 where 
 - *<query_file>* is a .vcf or .vcf.gz file containing the query sequences (see example in the **/demo** folder)
-- *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
 - *<genetic_map_file>* is the genetic map file (see example in the **/demo** folder)
 - *<output_basename>*.msp.tsv. is where the predictions are written (see **Output** below)
 - *<chr_nr>* is the chromosome number
+- *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
 
 ## Output
 

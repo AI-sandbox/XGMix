@@ -8,11 +8,15 @@ import sklearn.metrics
 import sys
 import xgboost as xgb
 
+from Admixture.Admixture import split_sample_map, main_admixture
+from Admixture.utils import read_vcf, join_paths, run_shell_cmd
+from preprocess import load_np_data, data_process
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
+from config import *
 
 class XGMIX():
 
-    def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,population_order=None, save=None,
+    def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
                 base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1):
 
         self.chmlen = chmlen
@@ -21,6 +25,7 @@ class XGMIX():
         self.sws = sws if sws %2 else sws-1
         self.num_anc = num_anc
         self.snp_pos = snp_pos
+        self.snp_ref = snp_ref
         self.population_order = population_order
         self.trees, self.max_depth = base_params
         self.missing = 2
@@ -141,20 +146,13 @@ class XGMIX():
 
         return y_preds.reshape(n,len(self.base))
 
+class Struct:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
 
-def predict(tt,path):
-    # data must match model's window size else error.
-    n, chmlen = tt.shape
-    xgm = pickle.load( open(path, "rb" ))
-    models = xgm.base
-    model = xgm.smooth
-
-    tt,_ = xgm._get_smooth_data(tt,np.zeros((2,2)))
-    y_preds = model.predict(tt)
-
-    return y_preds.reshape(n,len(models))
-
-def load_model(path_to_model):
+def load_model(path_to_model, verbose=True):
+    if verbose:
+        print("Loading model...")
     if path_to_model[-3:]==".gz":
         with gzip.open(path_to_model, 'rb') as unzipped:
             model = pickle.load(unzipped)
@@ -162,19 +160,85 @@ def load_model(path_to_model):
         model = pickle.load(open(path_to_model,"rb"))
     return model
 
+def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
+          smooth_size = 75, missing = 0.0, n_cores = 16, smooth_lite = 10000, verbose=True):
+
+    if verbose:
+        print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
+        print("Preprocessing data, initializing and training model...")
+    
+    # ------------------ Config ------------------
+    model_path = join_paths("./models") + model_name + "_chm_" + chm + ".pkl"
+
+    train_paths = [data_path + "/chm" + chm + "/simulation_output/train/gen_" + str(gen) + "/" for gen in generations]
+    val_paths   = [data_path + "/chm" + chm + "/simulation_output/val/gen_" + str(gen) + "/" for gen in generations] # only validate on 4th gen
+
+    position_map_file   = data_path + "/chm"+ chm + "/positions.txt"
+    reference_map_file  = data_path + "/chm"+ chm + "/references.txt"
+    population_map_file = data_path + "/populations.txt"
+    
+    # ------------------ Process data ------------------
+    # gather feature data files (binary representation of variants)
+    X_fname = "mat_vcf_2d.npy"
+    X_train_files = [p + X_fname for p in train_paths]
+    X_val_files   = [p + X_fname for p in val_paths]
+
+    # gather label data files (population)
+    labels_fname = "mat_map.npy"
+    labels_train_files = [p + labels_fname for p in train_paths]
+    labels_val_files   = [p + labels_fname for p in val_paths]
+
+    # load the data
+    train_val_files = [X_train_files, labels_train_files, X_val_files, labels_val_files]
+    X_train_raw, labels_train_raw, X_val_raw, labels_val_raw = [load_np_data(f) for f in train_val_files]
+
+    # reshape according to window size
+    X_train, labels_window_train = data_process(X_train_raw, labels_train_raw, window_size, missing)
+    X_val, labels_window_val     = data_process(X_val_raw, labels_val_raw, window_size, missing)
+
+    # for training and storing a pre-trained model
+    snp_pos = np.loadtxt(position_map_file,  delimiter='\n').astype("int")
+    snp_ref = np.loadtxt(reference_map_file, delimiter='\n', dtype=str)
+    pop_order = np.genfromtxt(population_map_file, dtype="str")
+    chm_len = len(snp_pos)
+    num_anc = len(pop_order)
+
+    # ------------------ Train model ------------------
+    # init, train and save model
+    model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
+    model.train(X_train, labels_window_train, X_val, labels_window_val, smooth_lite)
+    pickle.dump(model, open(model_path,"wb"))
+    
+    return model
 
 def main(args, verbose=True):
 
-    # Load pre-trained model
-    if verbose:
-        print("Loading pre-trained model...")
-    model = load_model(args.path_to_model)
+    if mode == "pre-trained":
+        # Load pre-trained model
+        model = load_model(args.path_to_model, verbose=verbose)
+    elif args.mode == "train":
+        # Simulate data from reference file, init model and train it
+
+        # Set output path
+        data_path = join_paths('./generated_data', instance_name)
+
+        # Splitting the reference sample in train/val/test
+        sub_instance_names = ["train", "val", "test"]
+        sample_map_files, sample_map_files_idxs = split_sample_map(data_path, args.sample_map_file)
+
+        # Simulating data
+        main_admixture(args.chm, data_path, sub_instance_names, sample_map_files, sample_map_files_idxs,
+                       args.reference_file, args.genetic_map_file, num_outs, generations)
+
+        # Processing data, init and training model
+        model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, smooth_lite)
+        print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
 
     # Load and process user query file
     if verbose:
         print("Loading and processing query file...")
     X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos,
-                                                              model.ref, verbose=verbose)
+                                                              model.snp_ref, verbose=verbose)
 
     # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
     if verbose:
@@ -183,30 +247,46 @@ def main(args, verbose=True):
 
     # writing the result to disc
     if verbose:
-        print("Gathering data and writing predictions to disc...")
+        print("Gathering prediction data and writing to disc...")
     msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos, query_pos,
                             model.num_windows, model.win, args.genetic_map_file)
     write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
 
+    if mode=="train" and rm_simulated_data:
+        print("Removing simulated data...")
+        chm_path = join_paths(data_path, "chm" + args.chm)
+        remove_data_cmd = "rm -r " + chm_path
+        run_shell_cmd(remove_data_cmd, verbose=False)
+
 if __name__ == "__main__":
 
-    if len(sys.argv)!=6:
-        print("Error: Not correct number of arguments. Usage:")
-        print("   $ python3 XGMIX.py <query_file> <path_to_model> <genetic_map_file> <output_basename> <chr_nr>")
+    mode = None
+    if len(sys.argv) == 6:
+        mode = "pre-trained" 
+    if len(sys.argv) == 7:
+        mode = "train"
+
+    if mode is None:
+        if len(sys.argv) > 1:
+            print("Error: Not correct number of arguments.")
+        print("Usage when training a model from scratch:")
+        print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <reference_file> <sample_map_file>")
+        print("Usage when using a pre-trained model:")
+        print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <path_to_model>")
         sys.exit(0)
 
+    base_args = {'mode': mode, 'query_file': sys.argv[1], 'genetic_map_file': sys.argv[2], 'output_basename': sys.argv[3], 'chm': sys.argv[4]}
+    args = Struct(**base_args)
+    if mode == "train":
+        args.reference_file  = sys.argv[5]
+        args.sample_map_file = sys.argv[6]
+    elif mode == "pre-trained":
+        args.path_to_model = sys.argv[5]
 
-    class Struct:
-        def __init__(self, **entries):
-            self.__dict__.update(entries)
-
-    args = {
-        'query_file': sys.argv[1],
-        'path_to_model': sys.argv[2],
-        'genetic_map_file': sys.argv[3],
-        'output_basename': sys.argv[4],
-        'chm': sys.argv[5],
-    }
-    args = Struct(**args)
-
+    if verbose:
+        print("Launching XGMix in", mode, "mode...")
+        print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
     main(args)
+
+
+
