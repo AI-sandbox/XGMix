@@ -42,7 +42,7 @@ where the first 4 arguments are described above in the pre-trained setting and
 - *<reference_file>* is a .vcf or .vcf.gz file containing the reference haplotypes (in any order)
 - *<sample_map_file>* is a sample map file matching reference samples to their respective reference populations
 
-The program uses these two files as input into (rfmix's)[https://github.com/slowkoni/rfmix] simulation to create training data for the model.
+The program uses these two files as input into [rfmix's](https://github.com/slowkoni/rfmix) simulation to create training data for the model.
 
 ### Advanced Options
 More advanced configuration settings can be seen and changed in *config.py*. 
