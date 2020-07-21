@@ -2,7 +2,7 @@
 
 This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method.
 
-XGMIX.py loads and uses pre-trained XGMix models to predict the ancestry for a given query_file (VCF) and chromosome number. The models are trained on build 37 references from the following continents: *AFR AHG EAS EUR NAT OCE SAS WAS* and labels and predicts them as 0, 1, .., 7 respectively.
+XGMIX.py loads and uses pre-trained XGMix models to predict the ancestry for a given query_file (VCF) and chromosome number. The models are trained on hg build 37 references from the following biogeographic regions: *Subsaharan African (AFR), African Hunter and Gatherer (AHG), East Asian (EAS), European (EUR), Native American (NAT), Oceanian (OCE), South Asian (SAS), West Asian (WAS)* and labels and predicts them as 0, 1, .., 7 respectively.
 
 ## Usage
 
