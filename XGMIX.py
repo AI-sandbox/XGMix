@@ -14,6 +14,12 @@ from preprocess import load_np_data, data_process
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 from config import *
 
+CLAIMER = 'When using this software, please cite: \n' + \
+            'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
+            '"XGMix: Local-Ancestry Inference With Stacked XGBoost" \n' + \
+            'International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4AH) \n' +  \
+            'https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1'
+
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
@@ -285,8 +291,6 @@ if __name__ == "__main__":
 
     if verbose:
         print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
+        print(CLAIMER)
         print("Launching XGMix in", mode, "mode...")
     main(args)
-
-
-
