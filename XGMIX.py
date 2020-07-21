@@ -284,8 +284,8 @@ if __name__ == "__main__":
         args.path_to_model = sys.argv[5]
 
     if verbose:
+        print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
         print("Launching XGMix in", mode, "mode...")
-        print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
     main(args)
 
 
