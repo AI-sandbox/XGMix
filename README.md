@@ -2,8 +2,10 @@
 
 This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method. 
 XGMIX.py can be used in two ways:
+
 - training a model from scratch using provided training data or 
 - loading a pre-trained XGMix model (see **Pre-Trained Models** below)
+
 In both cases the models are used to infer local ancestry for provided query data.
 
 ## Dependencies
