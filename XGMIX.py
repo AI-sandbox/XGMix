@@ -50,7 +50,7 @@ class XGMIX():
         self.base = {}
         self.smooth = None
 
-    def _train_base(self,train,train_lab,val,val_lab):
+    def _train_base(self,train,train_lab,val,val_lab,evaluate=False):
 
         train_accr=[]
         val_accr=[]
@@ -72,13 +72,18 @@ class XGMIX():
                 learning_rate=self.lr ,reg_lambda=self.reg_lambda,missing=self.missing,nthread=self.cores)
             model.fit(tt,ll_t)
 
-            y_pred = model.predict(tt)
-            train_metric = accuracy_score(y_pred,ll_t)
-            train_accr.append(train_metric)
+            if evaluate:
+                y_pred = model.predict(tt)
+                train_metric = accuracy_score(y_pred,ll_t)
+                train_accr.append(train_metric)
 
-            y_pred = model.predict(vt)
-            val_metric = accuracy_score(y_pred,ll_v)
-            val_accr.append(val_metric)
+                y_pred = model.predict(vt)
+                val_metric = accuracy_score(y_pred,ll_v)
+                val_accr.append(val_metric)
+
+                if idx%100 == 0:
+                    print("Windows done: {}/{}, ".format(idx, self.num_windows))
+                    print("Base Training Accuracy: {}, Base Validation Accuracy: {}".format(np.mean(train_accr), np.mean(val_accr)))
 
             self.base["model"+str(idx*self.win)] = model
 
@@ -113,6 +118,8 @@ class XGMIX():
 
 
     def _train_smooth(self,train,train_lab,val,val_lab,smoothlite):
+
+        print("Smoothing predictions and evaluating...")
 
         tt,ttl = self._get_smooth_data(train,train_lab)
         vv,vvl = self._get_smooth_data(val,val_lab)
@@ -258,12 +265,13 @@ def main(args, verbose=True):
                         args.reference_file, args.genetic_map_file, num_outs, generations)
 
             if verbose:
-                print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
+                print("Simulation done.")
+                print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
         # Processing data, init and training model
         model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, smooth_lite)
         if verbose:
-            print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
+            print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
     # Load and process user query file
     if verbose:
@@ -284,11 +292,14 @@ def main(args, verbose=True):
     write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
 
     if mode=="train" and rm_simulated_data:
-        print("Removing simulated data...")
+        if verbose:
+            print("Removing simulated data...")
         chm_path = join_paths(data_path, "chm" + args.chm, verb=False)
         remove_data_cmd = "rm -r " + chm_path
         run_shell_cmd(remove_data_cmd, verbose=False)
 
+    if verbose:
+        print("Finishing up...")
 if __name__ == "__main__":
 
     # Infer mode from number of arguments
@@ -320,7 +331,7 @@ if __name__ == "__main__":
     # Citation
     print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
     print(CLAIMER)
-    print("-"*80)
+    print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
     # Run it
     if verbose:
