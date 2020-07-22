@@ -9,11 +9,11 @@ XGMIX.py can be used in two ways:
 In both cases the models are used to infer local ancestry for provided query data.
 
 ## Dependencies
-The dependencies are listed in *requirements.txt*. Assuming (pip)[https://pip.pypa.io/en/stable/] is already installed, they can be installed via
+The dependencies are listed in *requirements.txt*. Assuming [pip](https://pip.pypa.io/en/stable/) is already installed, they can be installed via
 ```
 $ pip install -r requirements.txt
 ```
-When using the program for training a model, **bcftools** must be installed and available in the PATH environment setting.
+When using the program for training a model, [BCFtools](http://samtools.github.io/bcftools/bcftools.html) must be installed and available in the PATH environment setting.
 
 ## Usage
 
@@ -47,11 +47,12 @@ where the first 4 arguments are described above in the pre-trained setting and
 The program uses these two files as input into [rfmix's](https://github.com/slowkoni/rfmix) simulation to create training data for the model.
 
 ### Advanced Options
-More advanced configuration settings can be seen and changed in *config.py*. 
-They include general settings, simulation settings and training settings but more details are given in the file.
+More advanced configuration settings can be found in *config.py*. 
+They include general settings, simulation settings and model settings. More details are given in the file itself.
 
 ## Output
 
+### *<output_basename>*.msp.tsv
 The first line is a comment line, that specifies the order and encoding of populations: eg:
 #Sub_population order/code: golden_retriever=0 labrador_retriever=1 poodle poodle_small=2
 
@@ -64,6 +65,13 @@ The first 6 columns specify
 - number of *<query_file>* SNP positions that are included in interval
 
 The remaining columns give the predicted reference panel population for the given interval. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 6 + 2*(number of genotypes)
+
+### Model and simulated data
+When training a model, the resulting model will be stored in **./models**. That way it can be re-used for analyzing another dataset.
+The model's estimated accuracy is logged along with a confusion matrix which is stored in **./models/analysis**.
+The program simulates training data and stores in **./generated_data**. To automatically remove the created data when training is done,
+set *rm_simulated_data = True* in *config.py*. Note that in some cases, the simulated data can be re-used for training with similar settings. 
+In those cases, not removing the data and then setting *run_simulation=False* will re-use the previously simulated data which can save a lot of time and compuation.
 
 ## Pre-Trained Models
 
