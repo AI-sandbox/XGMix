@@ -2,8 +2,10 @@
 
 This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method. 
 XGMIX.py can be used in two ways:
+
 - training a model from scratch using provided training data or 
 - loading a pre-trained XGMix model (see **Pre-Trained Models** below)
+
 In both cases the models are used to infer local ancestry for provided query data.
 
 ## Dependencies
@@ -39,10 +41,10 @@ $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <r
 ```
 
 where the first 4 arguments are described above in the pre-trained setting and 
--*<reference_file>* is a .vcf or .vcf.gz file containing the reference haplotypes (in any order)
--*<sample_map_file>* is a sample map file matching reference samples to their respective reference populations
+- *<reference_file>* is a .vcf or .vcf.gz file containing the reference haplotypes (in any order)
+- *<sample_map_file>* is a sample map file matching reference samples to their respective reference populations
 
-The program uses these two files as input into (rfmix's)[https://github.com/slowkoni/rfmix] simulation to create training data for the model.
+The program uses these two files as input into [rfmix's](https://github.com/slowkoni/rfmix) simulation to create training data for the model.
 
 ### Advanced Options
 More advanced configuration settings can be seen and changed in *config.py*. 
