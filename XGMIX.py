@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import os
 import pickle
-import sklearn.metrics
+from sklearn.metrics import accuracy_score, confusion_matrix
 import sys
 import xgboost as xgb
 
@@ -12,12 +12,15 @@ from Admixture.Admixture import split_sample_map, main_admixture
 from Admixture.utils import read_vcf, join_paths, run_shell_cmd
 from preprocess import load_np_data, data_process
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
+from visualization import plot_cm
+
 from config import *
 
 CLAIMER = 'When using this software, please cite: \n' + \
             'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
             '"XGMix: Local-Ancestry Inference With Stacked XGBoost" \n' + \
-            'International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4AH) \n' +  \
+            'International Conference on Learning Representations Workshops \n' + \
+            'ICLR, 2020, Workshop AI4AH \n' + \
             'https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1'
 
 class XGMIX():
@@ -70,19 +73,16 @@ class XGMIX():
             model.fit(tt,ll_t)
 
             y_pred = model.predict(tt)
-            train_metric = sklearn.metrics.accuracy_score(y_pred,ll_t)
+            train_metric = accuracy_score(y_pred,ll_t)
             train_accr.append(train_metric)
 
             y_pred = model.predict(vt)
-            val_metric = sklearn.metrics.accuracy_score(y_pred,ll_v)
+            val_metric = accuracy_score(y_pred,ll_v)
             val_accr.append(val_metric)
 
             self.base["model"+str(idx*self.win)] = model
 
-            if idx%100 == 0:
-                print("Windows done: {}/{}, ".format(idx, self.num_windows))
-                print("Base Training Accuracy: {}, Base Validation Accuracy: {}".format(np.mean(train_accr), np.mean(val_accr)))
-
+            sys.stdout.write("\rWindows done: %i/%i" % (idx+1, self.num_windows))
 
     def _get_smooth_data(self,data,labels):
 
@@ -131,8 +131,8 @@ class XGMIX():
         y_pred = self.smooth.predict(vv)
         t_pred = self.smooth.predict(tt)
 
-        print("Smooth Training Accuracy: {} ".format(sklearn.metrics.accuracy_score(t_pred,ttl)))
-        print("Smooth Validation Accuracy: {} ".format(sklearn.metrics.accuracy_score(y_pred,vvl)))
+        print("Training Accuracy: {}%".format(round(accuracy_score(t_pred,ttl),6)*100))
+        print("Validation Accuracy: {}%".format(round(accuracy_score(y_pred,vvl),6)*100))
 
     def train(self,train,train_lab,val,val_lab,smoothlite=10000):
 
@@ -170,14 +170,14 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
           smooth_size = 75, missing = 0.0, n_cores = 16, smooth_lite = 10000, verbose=True):
 
     if verbose:
-        print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
-        print("Preprocessing data, initializing and training model...")
+        print("Preprocessing data...")
     
     # ------------------ Config ------------------
-    model_path = join_paths("./models") + model_name + "_chm_" + chm + ".pkl"
+    model_repo = join_paths("./models", verb=False) 
+    model_path = model_repo + model_name + "_chm_" + chm + ".pkl"
 
     train_paths = [data_path + "/chm" + chm + "/simulation_output/train/gen_" + str(gen) + "/" for gen in generations]
-    val_paths   = [data_path + "/chm" + chm + "/simulation_output/val/gen_" + str(gen) + "/" for gen in generations] # only validate on 4th gen
+    val_paths   = [data_path + "/chm" + chm + "/simulation_output/val/gen_"   + str(gen) + "/" for gen in generations] # only validate on 4th gen
 
     position_map_file   = data_path + "/chm"+ chm + "/positions.txt"
     reference_map_file  = data_path + "/chm"+ chm + "/references.txt"
@@ -202,43 +202,67 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
     X_train, labels_window_train = data_process(X_train_raw, labels_train_raw, window_size, missing)
     X_val, labels_window_val     = data_process(X_val_raw, labels_val_raw, window_size, missing)
 
-    # for training and storing a pre-trained model
+    # necessary arguments for model
     snp_pos = np.loadtxt(position_map_file,  delimiter='\n').astype("int")
     snp_ref = np.loadtxt(reference_map_file, delimiter='\n', dtype=str)
     pop_order = np.genfromtxt(population_map_file, dtype="str")
     chm_len = len(snp_pos)
     num_anc = len(pop_order)
 
-    # ------------------ Train model ------------------
-    # init, train and save model
+    # ------------------ Train model ------------------    
+    # init, train, evaluate and save model
+    if verbose:
+        print("Initializing an XGMix model and training...")
     model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
     model.train(X_train, labels_window_train, X_val, labels_window_val, smooth_lite)
+
+    # evaluate model
+    evaluation_path = join_paths(join_paths(model_repo,"analysis", verb=False), model_name + "_chm_" + chm, verb=False)
+    CM(y_pred=model.predict(X_val).ravel(), y=labels_window_val.ravel(), labels=pop_order,
+       save_path=evaluation_path, verbose=verbose)
     pickle.dump(model, open(model_path,"wb"))
     
     return model
 
+def CM(y_pred, y, labels, save_path=None, verbose=True):
+    cm = confusion_matrix(y_pred, y)
+    if verbose:
+        print("Confusion matrix for validation data:")
+        print(cm)
+    if save_path is not None:
+        np.savetxt(save_path+"/confusion_matrix.txt", cm)
+        cm_figure = plot_cm(cm, normalize=True, labels=labels)
+        cm_figure.figure.savefig(save_path+"/confusion_matrix_normalized.png")
+        if verbose:
+            print("Confusion matrix saved in", save_path)
+
 def main(args, verbose=True):
 
+    # Either load pre-trained model or simulate data from reference file, init model and train it
     if mode == "pre-trained":
-        # Load pre-trained model
         model = load_model(args.path_to_model, verbose=verbose)
     elif args.mode == "train":
-        # Simulate data from reference file, init model and train it
 
         # Set output path
-        data_path = join_paths('./generated_data', instance_name)
+        data_path = join_paths('./generated_data', instance_name, verb=False)
 
-        # Splitting the reference sample in train/val/test
-        sub_instance_names = ["train", "val", "test"]
-        sample_map_files, sample_map_files_idxs = split_sample_map(data_path, args.sample_map_file)
+        # Running simulation. If data is already simulated, skipping can save a lot of time
+        if run_simulation:
+            # Splitting the reference sample in train/val/test
+            sub_instance_names = ["train", "val", "test"]
+            sample_map_files, sample_map_files_idxs = split_sample_map(data_path, args.sample_map_file)
 
-        # Simulating data
-        main_admixture(args.chm, data_path, sub_instance_names, sample_map_files, sample_map_files_idxs,
-                       args.reference_file, args.genetic_map_file, num_outs, generations)
+            # Simulating data
+            main_admixture(args.chm, data_path, sub_instance_names, sample_map_files, sample_map_files_idxs,
+                        args.reference_file, args.genetic_map_file, num_outs, generations)
+
+            if verbose:
+                print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
 
         # Processing data, init and training model
         model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, smooth_lite)
-        print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
+        if verbose:
+            print("-"*80+"\n"+"-"*80+"\n"+"-"*80+"\n")
 
     # Load and process user query file
     if verbose:
@@ -260,18 +284,20 @@ def main(args, verbose=True):
 
     if mode=="train" and rm_simulated_data:
         print("Removing simulated data...")
-        chm_path = join_paths(data_path, "chm" + args.chm)
+        chm_path = join_paths(data_path, "chm" + args.chm, verb=False)
         remove_data_cmd = "rm -r " + chm_path
         run_shell_cmd(remove_data_cmd, verbose=False)
 
 if __name__ == "__main__":
 
+    # Infer mode from number of arguments
     mode = None
     if len(sys.argv) == 6:
         mode = "pre-trained" 
     if len(sys.argv) == 7:
         mode = "train"
 
+    # Usage message
     if mode is None:
         if len(sys.argv) > 1:
             print("Error: Not correct number of arguments.")
@@ -281,6 +307,7 @@ if __name__ == "__main__":
         print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <path_to_model>")
         sys.exit(0)
 
+    # Deconstruct CL arguments
     base_args = {'mode': mode, 'query_file': sys.argv[1], 'genetic_map_file': sys.argv[2], 'output_basename': sys.argv[3], 'chm': sys.argv[4]}
     args = Struct(**base_args)
     if mode == "train":
@@ -288,9 +315,13 @@ if __name__ == "__main__":
         args.sample_map_file = sys.argv[6]
     elif mode == "pre-trained":
         args.path_to_model = sys.argv[5]
+    
+    # Citation
+    print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
+    print(CLAIMER)
+    print("-"*80)
 
+    # Run it
     if verbose:
-        print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
-        print(CLAIMER)
         print("Launching XGMix in", mode, "mode...")
     main(args)

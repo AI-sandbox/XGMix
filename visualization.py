@@ -15,12 +15,13 @@ def plot_cm(cm, normalize=True, labels=None, figsize=(12,10)):
     df_cm = pd.DataFrame(cm, range(cm.shape[0]), range(cm.shape[1]))
     sns.set(font_scale=1.4) # for label size
     if labels is None:
-        sns.heatmap(df_cm, annot=False, annot_kws={"size": 16}) # font size
+        fig = sns.heatmap(df_cm, annot=False, annot_kws={"size": 16}) # font size
     else:
-        sns.heatmap(df_cm, xticklabels=labels, yticklabels=labels,
+        fig = sns.heatmap(df_cm, xticklabels=labels, yticklabels=labels,
                    annot=False, annot_kws={"size": 16}) # font size
-
+    
     plt.show()
+    return fig
 
 def plot_chm(sample_id, msp_df, img_name="chm_img"):
     

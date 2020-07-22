@@ -106,7 +106,7 @@ def vcf_to_npy(vcf_fname, chm, snp_pos_fmt, snp_ref_fmt, miss_fill=2, verbose=Tr
     fmt_swap_idx = np.array(fmt_idx)[swap]  # swap-index at model format
     mat_vcf_2d[:,fmt_swap_idx] = (mat_vcf_2d[:,fmt_swap_idx]-1)*(-1)
 
-    # make sure all missing values are encoded as miss_fill
+    # make sure all missing values are encoded in same way
     missing_mask = np.logical_and(mat_vcf_2d != 0, mat_vcf_2d != 1)
     mat_vcf_2d[missing_mask] = miss_fill
 

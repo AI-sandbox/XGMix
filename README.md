@@ -7,11 +7,11 @@ XGMIX.py can be used in two ways:
 In both cases the models are used to infer local ancestry for provided query data.
 
 ## Dependencies
-The dependencies are listed in *requirements.txt*. Assuming pip is already installed, they can be installed via
+The dependencies are listed in *requirements.txt*. Assuming (pip)[https://pip.pypa.io/en/stable/] is already installed, they can be installed via
 ```
 $ pip install -r requirements.txt
 ```
-If using the tool for training a model, **bcftools** must be installed and available in the PATH environment setting.
+When using the program for training a model, **bcftools** must be installed and available in the PATH environment setting.
 
 ## Usage
 
