@@ -1,6 +1,7 @@
 # XGMix: Local-Ancestry Inference With Stacked XGBoost
 
 This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method. 
+
 XGMIX.py can be used in two ways:
 
 - training a model from scratch using provided training data or 
@@ -44,7 +45,7 @@ where the first 4 arguments are described above in the pre-trained setting and
 - *<reference_file>* is a .vcf or .vcf.gz file containing the reference haplotypes (in any order)
 - *<sample_map_file>* is a sample map file matching reference samples to their respective reference populations
 
-The program uses these two files as input into [rfmix's](https://github.com/slowkoni/rfmix) simulation to create training data for the model.
+The program uses these two files as input to [rfmix's](https://github.com/slowkoni/rfmix) simulation algorithm to create training data for the model.
 
 ### Advanced Options
 More advanced configuration settings can be found in *config.py*. 
@@ -70,8 +71,8 @@ The remaining columns give the predicted reference panel population for the give
 When training a model, the resulting model will be stored in **./models**. That way it can be re-used for analyzing another dataset.
 The model's estimated accuracy is logged along with a confusion matrix which is stored in **./models/analysis**.
 The program simulates training data and stores in **./generated_data**. To automatically remove the created data when training is done,
-set *rm_simulated_data = True* in *config.py*. Note that in some cases, the simulated data can be re-used for training with similar settings. 
-In those cases, not removing the data and then setting *run_simulation=False* will re-use the previously simulated data which can save a lot of time and compuation.
+set *rm_simulated_data* to True in *config.py*. Note that in some cases, the simulated data can be re-used for training with similar settings. 
+In those cases, not removing the data and then setting *run_simulation* to False will re-use the previously simulated data which can save a lot of time and compuation.
 
 ## Pre-Trained Models
 
