@@ -83,6 +83,7 @@ class XGMIX():
             self.base["model"+str(idx*self.win)] = model
 
             sys.stdout.write("\rWindows done: %i/%i" % (idx+1, self.num_windows))
+        print("")
 
     def _get_smooth_data(self,data,labels):
 
@@ -131,8 +132,8 @@ class XGMIX():
         y_pred = self.smooth.predict(vv)
         t_pred = self.smooth.predict(tt)
 
-        print("Training Accuracy: {}%".format(round(accuracy_score(t_pred,ttl),6)*100))
-        print("Validation Accuracy: {}%".format(round(accuracy_score(y_pred,vvl),6)*100))
+        print("Training Accuracy: {}%".format(round(accuracy_score(t_pred,ttl),4)*100))
+        print("Validation Accuracy: {}%".format(round(accuracy_score(y_pred,vvl),4)*100))
 
     def train(self,train,train_lab,val,val_lab,smoothlite=10000):
 
