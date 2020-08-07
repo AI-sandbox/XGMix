@@ -6,7 +6,22 @@ import os
 import pickle
 from sklearn.metrics import accuracy_score, confusion_matrix
 import sys
+from time import time
 import xgboost as xgb
+
+# Trying other GBM methods
+import lightgbm as lgb
+import catboost as cb
+import ngboost as ngb
+from ngboost.distns import k_categorical
+import multiprocessing
+from sklearn import ensemble
+from sklearn import svm
+from sklearn import linear_model
+
+from sklearn.experimental import enable_hist_gradient_boosting  # noqa
+# now you can import normally from ensemble
+from sklearn.ensemble import HistGradientBoostingClassifier
 
 from Admixture.Admixture import split_sample_map, main_admixture
 from Admixture.utils import read_vcf, join_paths, run_shell_cmd
@@ -26,7 +41,7 @@ CLAIMER = 'When using this software, please cite: \n' + \
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1):
+                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb"):
 
         self.chmlen = chmlen
         self.win = win
@@ -40,8 +55,10 @@ class XGMIX():
         self.missing = 2
         self.lr = lr
         self.reg_lambda = reg_lambda
+        self.reg_alpha = reg_alpha
+        self.model = model
 
-        self.s_trees,self.s_max_depth = smooth_params
+        self.s_trees, self.s_max_depth = smooth_params
         self.cores = cores
 
         self.num_windows = self.chmlen//self.win
@@ -50,10 +67,14 @@ class XGMIX():
         self.base = {}
         self.smooth = None
 
-    def _train_base(self,train,train_lab,val,val_lab,evaluate=False):
+        # model stats
+        self.training_time = None
+        self.base_acc_train = None
+        self.base_acc_val = None
+        self.smooth_acc_train = None
+        self.smooth_acc_val = None
 
-        train_accr=[]
-        val_accr=[]
+    def _train_base(self,train,train_lab,val,val_lab,evaluate=True):
 
         for idx in range(self.num_windows):
 
@@ -68,11 +89,63 @@ class XGMIX():
                 vt = val[:,idx*self.win:]
 
             # fit model
-            model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
-                learning_rate=self.lr ,reg_lambda=self.reg_lambda,missing=self.missing,nthread=self.cores)
+            if self.model == "rf":
+                if idx == 0:
+                    print("using rf")
+                model = ensemble.RandomForestClassifier(n_estimators=self.trees,
+                        max_depth=self.max_depth,n_jobs=self.cores) 
+            elif self.model == "hgbm":
+                if idx == 0:
+                    print("using hgbm")
+                model = HistGradientBoostingClassifier(max_depth=self.max_depth,
+                            learning_rate=self.lr, l2_regularization=self.reg_lambda)
+            elif self.model == "lgb":
+                if idx == 0:
+                    print("using lgb")
+                model = lgb.LGBMClassifier(n_estimators=self.trees, max_depth=self.max_depth,
+                            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
+                            nthread=self.cores) 
+            elif self.model == "cb":
+                if idx == 0:
+                    print("using cb")
+                model = cb.CatBoostClassifier(n_estimators=self.trees, max_depth=self.max_depth,
+                            learning_rate=self.lr, reg_lambda=self.reg_lambda, thread_count=self.cores, verbose=0)
+            elif self.model == "svm":
+                if idx == 0:
+                    print("using svm")
+                model = svm.SVC(C=100., gamma=0.001, probability=True)
+            else:
+                if idx == 0:
+                    print("using xgb")
+                model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
+                        learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
+                        nthread=self.cores, missing=self.missing)
+            
             model.fit(tt,ll_t)
+            self.base["model"+str(idx*self.win)] = model
 
-            if evaluate:
+            sys.stdout.write("\rWindows done: %i/%i" % (idx+1, self.num_windows))
+        
+        print("")
+
+        if evaluate:
+
+            train_accr, val_accr = [], []
+
+            for idx in range(self.num_windows):
+
+                model = self.base["model"+str(idx*self.win)]
+
+                # a particular window across all examples
+                tt = train[:,idx*self.win:(idx+1)*self.win]
+                vt = val[:,idx*self.win:(idx+1)*self.win]
+                ll_t = train_lab[:,idx]
+                ll_v = val_lab[:,idx]
+
+                if idx == self.num_windows-1:
+                    tt = train[:,idx*self.win:]
+                    vt = val[:,idx*self.win:]
+                
                 y_pred = model.predict(tt)
                 train_metric = accuracy_score(y_pred,ll_t)
                 train_accr.append(train_metric)
@@ -81,14 +154,10 @@ class XGMIX():
                 val_metric = accuracy_score(y_pred,ll_v)
                 val_accr.append(val_metric)
 
-                if idx%100 == 0:
-                    print("Windows done: {}/{}, ".format(idx, self.num_windows))
-                    print("Base Training Accuracy: {}, Base Validation Accuracy: {}".format(np.mean(train_accr), np.mean(val_accr)))
-
-            self.base["model"+str(idx*self.win)] = model
-
-            sys.stdout.write("\rWindows done: %i/%i" % (idx+1, self.num_windows))
-        print("")
+            self.base_acc_train = round(np.mean(train_accr),4)*100
+            self.base_acc_val = round(np.mean(val_accr),4)*100
+            print("Base Training Accuracy:   {}%".format(self.base_acc_train))
+            print("Base Validation Accuracy: {}%".format(self.base_acc_val))
 
     def _get_smooth_data(self,data,labels):
 
@@ -131,23 +200,44 @@ class XGMIX():
         ttl = ttl[indices]
 
         # Train model
-        self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-            learning_rate=self.lr,reg_lambda=self.reg_lambda,nthread=self.cores)
+        if self.model == "rf":
+            self.smooth = ensemble.RandomForestClassifier(n_estimators=self.s_trees, 
+                max_depth=self.s_max_depth, n_jobs=self.cores) 
+        elif self.model == "lr":
+            self.smooth = linear_model.LogisticRegression(n_jobs=self.cores)
+        elif self.model == "hgbm":
+            self.smooth = HistGradientBoostingClassifier(max_depth=self.s_max_depth,
+                            learning_rate=self.lr, l2_regularization=self.reg_lambda) 
+        elif self.model == "lgb":
+            self.smooth = lgb.LGBMClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
+                learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
+        elif self.model == "cb":
+            self.smooth = cb.CatBoostClassifier(n_estimators=self.s_trees, max_depth=self.s_max_depth,
+                learning_rate=self.lr, reg_lambda=self.reg_lambda, thread_count=self.cores, verbose=0)
+        elif self.model == "svm":
+            self.smooth = svm.SVC(C=100., gamma=0.001, probability=True)
+        else:
+            self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
+                learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
+        
         self.smooth.fit(tt,ttl)
 
         # Evaluate model
         y_pred = self.smooth.predict(vv)
         t_pred = self.smooth.predict(tt)
-
-        print("Training Accuracy: {}%".format(round(accuracy_score(t_pred,ttl),4)*100))
-        print("Validation Accuracy: {}%".format(round(accuracy_score(y_pred,vvl),4)*100))
+        self.smooth_acc_train = round(accuracy_score(t_pred,ttl),4)*100
+        self.smooth_acc_val   = round(accuracy_score(y_pred,vvl),4)*100
+        print("Smooth Training Accuracy:   {}%".format(self.smooth_acc_train))
+        print("Smooth Validation Accuracy: {}%".format(self.smooth_acc_val))
 
     def train(self,train,train_lab,val,val_lab,smoothlite=10000):
 
         # smoothlite: int or False. If False train smoother on all data, else train only on that number of contexts.
 
+        train_time_begin = time()
         self._train_base(train,train_lab,val,val_lab)
         self._train_smooth(train,train_lab,val,val_lab,smoothlite=smoothlite)
+        self.training_time = time() - train_time_begin
 
         # Save model
         if self.save is not None:
@@ -302,6 +392,11 @@ def main(args, verbose=True):
         print("Finishing up...")
 if __name__ == "__main__":
 
+    # Citation
+    print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
+    print(CLAIMER)
+    print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
+
     # Infer mode from number of arguments
     mode = None
     if len(sys.argv) == 6:
@@ -327,11 +422,6 @@ if __name__ == "__main__":
         args.sample_map_file = sys.argv[6]
     elif mode == "pre-trained":
         args.path_to_model = sys.argv[5]
-    
-    # Citation
-    print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
-    print(CLAIMER)
-    print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
     # Run it
     if verbose:

@@ -74,11 +74,13 @@ def data_process(X, labels, window_size, missing):
         
     return X, labels
 
-def dropout_row(data,missing_percent):
+def dropout_row(data, missing_percent):
     num_drops = int(len(data)*missing_percent)
     drop_indices = np.random.choice(np.arange(len(data)),size=num_drops,replace=False)
     data[drop_indices] = 2
     return data
 
 def simulate_missing_values(data, missing_percent=0.0):
+    if missing_percent == 0:
+        return data
     return np.apply_along_axis(dropout_row, axis=1, arr=data, missing_percent=missing_percent)
