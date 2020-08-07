@@ -298,14 +298,14 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
 
     # evaluate model
     evaluation_path = join_paths(join_paths(model_repo,"analysis", verb=False), model_name + "_chm_" + chm, verb=False)
-    CM(y_pred=model.predict(X_val).ravel(), y=labels_window_val.ravel(), labels=pop_order,
+    CM(y=labels_window_val.ravel(), y_pred=model.predict(X_val).ravel(), labels=pop_order,
        save_path=evaluation_path, verbose=verbose)
     pickle.dump(model, open(model_path,"wb"))
     
     return model
 
-def CM(y_pred, y, labels, save_path=None, verbose=True):
-    cm = confusion_matrix(y_pred, y)
+def CM(y, y_pred, labels, save_path=None, verbose=True):
+    cm = confusion_matrix(y, y_pred)
     if verbose:
         print("Confusion matrix for validation data:")
         print(cm)
