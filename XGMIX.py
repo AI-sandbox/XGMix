@@ -9,20 +9,6 @@ import sys
 from time import time
 import xgboost as xgb
 
-# Trying other GBM methods
-import lightgbm as lgb
-import catboost as cb
-import ngboost as ngb
-from ngboost.distns import k_categorical
-import multiprocessing
-from sklearn import ensemble
-from sklearn import svm
-from sklearn import linear_model
-
-from sklearn.experimental import enable_hist_gradient_boosting  # noqa
-# now you can import normally from ensemble
-from sklearn.ensemble import HistGradientBoostingClassifier
-
 from Admixture.Admixture import split_sample_map, main_admixture
 from Admixture.utils import read_vcf, join_paths, run_shell_cmd
 from preprocess import load_np_data, data_process
@@ -89,38 +75,37 @@ class XGMIX():
                 vt = val[:,idx*self.win:]
 
             # fit model
+            if self.model == "xgb":
+                if idx == 0:
+                    print("using xgb")
+                model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
+                        learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
+                        nthread=self.cores, missing=self.missing)
             if self.model == "rf":
+                from sklearn import ensemble
                 if idx == 0:
                     print("using rf")
                 model = ensemble.RandomForestClassifier(n_estimators=self.trees,
                         max_depth=self.max_depth,n_jobs=self.cores) 
-            elif self.model == "hgbm":
-                if idx == 0:
-                    print("using hgbm")
-                model = HistGradientBoostingClassifier(max_depth=self.max_depth,
-                            learning_rate=self.lr, l2_regularization=self.reg_lambda)
             elif self.model == "lgb":
+                import lightgbm as lgb
                 if idx == 0:
                     print("using lgb")
                 model = lgb.LGBMClassifier(n_estimators=self.trees, max_depth=self.max_depth,
                             learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
                             nthread=self.cores) 
             elif self.model == "cb":
+                import catboost as cb
                 if idx == 0:
                     print("using cb")
                 model = cb.CatBoostClassifier(n_estimators=self.trees, max_depth=self.max_depth,
                             learning_rate=self.lr, reg_lambda=self.reg_lambda, thread_count=self.cores, verbose=0)
             elif self.model == "svm":
+                from sklearn import svm
                 if idx == 0:
                     print("using svm")
                 model = svm.SVC(C=100., gamma=0.001, probability=True)
-            else:
-                if idx == 0:
-                    print("using xgb")
-                model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
-                        learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                        nthread=self.cores, missing=self.missing)
-            
+
             model.fit(tt,ll_t)
             self.base["model"+str(idx*self.win)] = model
 
@@ -200,14 +185,14 @@ class XGMIX():
         ttl = ttl[indices]
 
         # Train model
-        if self.model == "rf":
+        if self.model == "xgb":
+            self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
+                learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
+        elif self.model == "rf":
             self.smooth = ensemble.RandomForestClassifier(n_estimators=self.s_trees, 
                 max_depth=self.s_max_depth, n_jobs=self.cores) 
         elif self.model == "lr":
             self.smooth = linear_model.LogisticRegression(n_jobs=self.cores)
-        elif self.model == "hgbm":
-            self.smooth = HistGradientBoostingClassifier(max_depth=self.s_max_depth,
-                            learning_rate=self.lr, l2_regularization=self.reg_lambda) 
         elif self.model == "lgb":
             self.smooth = lgb.LGBMClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
                 learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
@@ -216,9 +201,6 @@ class XGMIX():
                 learning_rate=self.lr, reg_lambda=self.reg_lambda, thread_count=self.cores, verbose=0)
         elif self.model == "svm":
             self.smooth = svm.SVC(C=100., gamma=0.001, probability=True)
-        else:
-            self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
         
         self.smooth.fit(tt,ttl)
 
