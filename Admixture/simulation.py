@@ -10,7 +10,7 @@ import re
 
 from Admixture.utils import *
 
-def write_founders_bcf(reference_file_bcf, sample_file, output_path, verb=False):
+def write_founders_bcf(reference_file_bcf, sample_file, output_path, verb=True):
     """
     Copy contents of sample map into founders map, create the bcg.gz files and index them.
     """

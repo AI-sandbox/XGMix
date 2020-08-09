@@ -181,8 +181,9 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
         print("Preprocessing data...")
     
     # ------------------ Config ------------------
-    model_repo = join_paths("./models", verb=False) 
-    model_path = model_repo + model_name + "_chm_" + chm + ".pkl"
+    model_name += "_chm_" + chm
+    model_repo = join_paths("./models", model_name, verb=False) 
+    model_path = model_repo + "/" + model_name + ".pkl"
 
     train_paths = [data_path + "/chm" + chm + "/simulation_output/train/gen_" + str(gen) + "/" for gen in generations]
     val_paths   = [data_path + "/chm" + chm + "/simulation_output/val/gen_"   + str(gen) + "/" for gen in generations] # only validate on 4th gen
@@ -220,14 +221,13 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
     # ------------------ Train model ------------------    
     # init, train, evaluate and save model
     if verbose:
-        print("Initializing an XGMix model and training...")
+        print("Initializing XGMix model and training...")
     model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
     model.train(X_train, labels_window_train, X_val, labels_window_val, smooth_lite)
 
     # evaluate model
-    evaluation_path = join_paths(join_paths(model_repo,"analysis", verb=False), model_name + "_chm_" + chm, verb=False)
-    CM(y_pred=model.predict(X_val).ravel(), y=labels_window_val.ravel(), labels=pop_order,
-       save_path=evaluation_path, verbose=verbose)
+    analysis_path = join_paths(model_repo, "analysis", verb=False)
+    CM(model.predict(X_val).ravel(), labels_window_val.ravel(), pop_order, analysis_path, verbose)
     pickle.dump(model, open(model_path,"wb"))
     
     return model
@@ -273,23 +273,24 @@ def main(args, verbose=True):
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
-    # Load and process user query file
-    if verbose:
-        print("Loading and processing query file...")
-    X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos,
-                                                              model.snp_ref, verbose=verbose)
+    if args.query_file is not None:
+        # Load and process user query file
+        if verbose:
+            print("Loading and processing query file...")
+        X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos,
+                                                                model.snp_ref, verbose=verbose)
 
-    # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
-    if verbose:
-        print("Making predictions for query file...")
-    label_pred_query_window = model.predict(X_query)
+        # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
+        if verbose:
+            print("Analyzing...")
+        label_pred_query_window = model.predict(X_query)
 
-    # writing the result to disc
-    if verbose:
-        print("Gathering prediction data and writing to disc...")
-    msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos, query_pos,
-                            model.num_windows, model.win, args.genetic_map_file)
-    write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
+        # writing the result to disc
+        if verbose:
+            print("Writing analyzis to disc...")
+        msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos, query_pos,
+                                model.num_windows, model.win, args.genetic_map_file)
+        write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
 
     if mode=="train" and rm_simulated_data:
         if verbose:
@@ -300,6 +301,7 @@ def main(args, verbose=True):
 
     if verbose:
         print("Finishing up...")
+
 if __name__ == "__main__":
 
     # Infer mode from number of arguments
@@ -320,7 +322,13 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # Deconstruct CL arguments
-    base_args = {'mode': mode, 'query_file': sys.argv[1], 'genetic_map_file': sys.argv[2], 'output_basename': sys.argv[3], 'chm': sys.argv[4]}
+    base_args = {
+        'mode': mode,
+        'query_file': sys.argv[1] if sys.argv[1].strip() != "None" else None,
+        'genetic_map_file': sys.argv[2],
+        'output_basename': sys.argv[3],
+        'chm': sys.argv[4]
+    }
     args = Struct(**base_args)
     if mode == "train":
         args.reference_file  = sys.argv[5]

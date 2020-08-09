@@ -13,7 +13,7 @@ import re
 
 def run_shell_cmd(cmd, verb=True):
     if verb:
-        print("Running: %s\n" % cmd,"\n")
+        print("Running:", cmd)
     rval = os.system(cmd)
     if rval != 0:
         signal = rval & 0xFF
@@ -56,13 +56,20 @@ def convert_to_bcf(vcf_file, output_path):
 
         path = join_paths(output_path, "temp_files")
         bcf_path = path + "/reference.bcf.gz"
-        
+                
+        convert_cmd = "bcftools view --output-type b --output-file %s --threads 12 %s" % (bcf_path, vcf_file)
         print("Converting " + vcf_file + " to .bcf.gz format ...")
-        convert_to_bcf = "bcftools view --output-type b --output-file %s --threads 12 %s" % (bcf_path, vcf_file)
-        run_shell_cmd(convert_to_bcf)
+        try:
+            run_shell_cmd(convert_cmd)
+        except:
+            print("something went wrong when converting reference file to .bcf format ...", end=" ")
+            print("trying to solve by indexing ...")
+            indexing_vcf_cmd = "bcftools index -f %s" % vcf_file
+            run_shell_cmd(indexing_vcf_cmd)
+            run_shell_cmd(convert_cmd)
         
-        indexing_bcf = "bcftools index -f %s" % (bcf_path)
-        run_shell_cmd(indexing_bcf)
+        indexing_bcf_cmd = "bcftools index -f %s" % (bcf_path)
+        run_shell_cmd(indexing_bcf_cmd)
     
     return bcf_path
 
