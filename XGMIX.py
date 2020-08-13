@@ -99,7 +99,8 @@ class XGMIX():
                 if idx == 0:
                     print("using cb")
                 model = cb.CatBoostClassifier(n_estimators=self.trees, max_depth=self.max_depth,
-                            learning_rate=self.lr, reg_lambda=self.reg_lambda, thread_count=self.cores, verbose=0)
+                            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, 
+                            thread_count=self.cores, verbose=0)
             elif self.model == "svm":
                 from sklearn import svm
                 if idx == 0:
@@ -153,7 +154,8 @@ class XGMIX():
             inp = data[:,i*self.win:(i+1)*self.win]
             if i == len(self.base)-1:
                 inp = data[:,i*self.win:]
-            base_out[:,i,:] = self.base["model"+str(i*self.win)].predict_proba(inp)
+            base_model = self.base["model"+str(i*self.win)]
+            base_out[:,i,base_model.classes_] = base_model.predict_proba(inp)
 
         # pad it.
         pad_left = np.flip(base_out[:,0:self.pad_size,:],axis=1)
@@ -187,7 +189,7 @@ class XGMIX():
         # Train model
         if self.model == "xgb":
             self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
+                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores)
         elif self.model == "rf":
             self.smooth = ensemble.RandomForestClassifier(n_estimators=self.s_trees, 
                 max_depth=self.s_max_depth, n_jobs=self.cores) 
@@ -195,10 +197,11 @@ class XGMIX():
             self.smooth = linear_model.LogisticRegression(n_jobs=self.cores)
         elif self.model == "lgb":
             self.smooth = lgb.LGBMClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr,reg_lambda=self.reg_lambda, nthread=self.cores)
+                learning_rate=self.lr,reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores)
         elif self.model == "cb":
             self.smooth = cb.CatBoostClassifier(n_estimators=self.s_trees, max_depth=self.s_max_depth,
-                learning_rate=self.lr, reg_lambda=self.reg_lambda, thread_count=self.cores, verbose=0)
+                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, thread_count=self.cores,
+                verbose=0)
         elif self.model == "svm":
             self.smooth = svm.SVC(C=100., gamma=0.001, probability=True)
         
