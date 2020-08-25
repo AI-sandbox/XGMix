@@ -8,7 +8,6 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import sys
 from time import time
 import xgboost as xgb
-import lightgbm as lgb
 
 from Admixture.Admixture import split_sample_map, main_admixture
 from Admixture.utils import read_vcf, join_paths, run_shell_cmd
