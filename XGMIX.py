@@ -8,6 +8,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import sys
 from time import time
 import xgboost as xgb
+import lightgbm as lgb
 
 from Admixture.Admixture import split_sample_map, main_admixture
 from Admixture.utils import read_vcf, join_paths, run_shell_cmd
@@ -147,8 +148,10 @@ class XGMIX():
 
     def _get_smooth_data(self,data,labels):
 
+        data_shape = data.shape
+
         # get base output
-        base_out = np.zeros((data.shape[0],len(self.base),self.num_anc))
+        base_out = np.zeros((data.shape[0],len(self.base),self.num_anc),dtype="float32")
         for i in range(len(self.base)):
 
             inp = data[:,i*self.win:(i+1)*self.win]
@@ -157,14 +160,16 @@ class XGMIX():
             base_model = self.base["model"+str(i*self.win)]
             base_out[:,i,base_model.classes_] = base_model.predict_proba(inp)
 
+        del data, inp, base_model
+
         # pad it.
         pad_left = np.flip(base_out[:,0:self.pad_size,:],axis=1)
         pad_right = np.flip(base_out[:,-self.pad_size:,:],axis=1)
-
         base_out_padded = np.concatenate([pad_left,base_out,pad_right],axis=1)
+        del base_out
 
         # window it.
-        windowed_data = np.zeros((data.shape[0],len(self.base),self.num_anc*self.sws))
+        windowed_data = np.zeros((data_shape[0],len(self.base),self.num_anc*self.sws),dtype="float32")
         for ppl,dat in enumerate(base_out_padded):
             for win in range(windowed_data.shape[1]):
                 windowed_data[ppl,win,:] = dat[win:win+self.sws].ravel()
@@ -175,7 +180,7 @@ class XGMIX():
 
     def _train_smooth(self,train,train_lab,val,val_lab,smoothlite):
 
-        print("Smoothing predictions and evaluating...")
+        print("Smoothing predictions...")
 
         tt,ttl = self._get_smooth_data(train,train_lab)
         vv,vvl = self._get_smooth_data(val,val_lab)
@@ -208,6 +213,7 @@ class XGMIX():
         self.smooth.fit(tt,ttl)
 
         # Evaluate model
+        print("Evaluating...")
         y_pred = self.smooth.predict(vv)
         t_pred = self.smooth.predict(tt)
         self.smooth_acc_train = round(accuracy_score(t_pred,ttl),4)*100
@@ -217,8 +223,10 @@ class XGMIX():
 
     def train(self,train,train_lab,val,val_lab,smoothlite=10000):
 
-        # smoothlite: int or False. If False train smoother on all data, else train only on that number of contexts.
+        train, val = [np.array(data).astype("int8") for data in [train, val]]
+        train_lab, val_lab = [np.array(data).astype("int16") for data in [train_lab, val_lab]]
 
+        # smoothlite: int or False. If False train smoother on all data, else train only on that number of contexts.
         train_time_begin = time()
         self._train_base(train,train_lab,val,val_lab)
         self._train_smooth(train,train_lab,val,val_lab,smoothlite=smoothlite)
@@ -234,6 +242,13 @@ class XGMIX():
         y_preds = self.smooth.predict(tt)
 
         return y_preds.reshape(n,len(self.base))
+
+    def predict_proba(self,tt,predict_proba=False):
+        n,_ = tt.shape
+        tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
+        proba = self.smooth.predict_proba(tt).reshape(n,-1,self.num_anc)
+
+        return proba
 
 class Struct:
     def __init__(self, **entries):
@@ -304,7 +319,7 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
     analysis_path = join_paths(model_repo, "analysis", verb=False)
     CM(labels_window_val.ravel(), model.predict(X_val).ravel(), pop_order, analysis_path, verbose)
     pickle.dump(model, open(model_path,"wb"))
-    
+
     return model
 
 def CM(y, y_pred, labels, save_path=None, verbose=True):
@@ -344,6 +359,8 @@ def main(args, verbose=True):
             if verbose:
                 print("Simulation done.")
                 print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
+        else:
+            print("Using simulated data from " + data_path + "...")
 
         # Processing data, init and training model
         model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, smooth_lite)
