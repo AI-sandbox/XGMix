@@ -3,7 +3,7 @@ verbose = True     # logging
 instance_name = "" # can be used for organizing simulation output and models
 
 # Simulatiation configuration
-run_simulation = True    # if you already simulated data, setting False will re-use it
+run_simulation = True     # if you already simulated data, setting False will re-use it
 num_outs = [300, 100, 0]  # how many individuals in each sub-instance
 generations = [2, 4, 8, 16, 32, 64]  # what generations to generate during simulation
 rm_simulated_data = False # remove the simulated data after training the model
