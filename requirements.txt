@@ -18,3 +18,4 @@ six==1.15.0
 threadpoolctl==2.1.0
 toolz==0.10.0
 xgboost==1.1.1
+uncertainty-calibration==0.0.7
