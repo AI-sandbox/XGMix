@@ -265,9 +265,9 @@ class XGMIX():
         else:    
             n,_ = tt.shape
             tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
-            y_preds = self.smooth.predict(tt)
-
-        return y_preds.reshape(n,len(self.base))
+            y_preds = self.smooth.predict(tt).reshape(n,len(self.base))
+            
+        return y_preds
 
     def predict_proba(self,tt,predict_proba=False,rtn_calibrated=True):
         n,_ = tt.shape
@@ -276,11 +276,11 @@ class XGMIX():
 
         if rtn_calibrated:
             if self.calibrator is not None:
-                proba_flatten = proba(-1,self.num_anc)
+                proba_flatten=proba.reshape(-1,self.num_anc)
+                iso_prob=np.zeros((proba_flatten.shape[0],self.num_anc))
                 for i in range(self.num_anc):    
                     iso_prob[:,i] = self.calibrator[i].transform(proba_flatten[:,i])
-                iso_prob = normalize_prob(iso_prob, self.num_anc)
-                proba = iso_prob.reshape(n,-1,self.num_anc)
+                proba = normalize_prob(iso_prob, self.num_anc).reshape(n,-1,self.num_anc)
             else:
                 print("No calibrator found, returning uncalibrated probabilities")
 
