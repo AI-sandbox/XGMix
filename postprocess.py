@@ -129,7 +129,17 @@ def get_effective_pred(prediction, chm_len, window_size, model_idx):
     return ext[:, model_idx]
 
 
-def get_msp_data(chm, pred_wind, model_pos, query_pos, n_wind, wind_size, genetic_map_file):
+def get_msp_data(chm, pred_labels, model_pos, query_pos, n_wind, wind_size, genetic_map_file):
+    """
+    Transforms the predictions on a window level to a .msp file format.
+    - chm: chromosome number
+    - pred_labels: labels or predictions on a window level
+    - model_pos: physical positions of the model input SNPs in basepair units
+    - query_pos: physical positions of the query input SNPs in basepair units
+    - n_wind: number of windows in model
+    - wind_size: size of each window in the model
+    - genetic_map_file: the input genetic map file
+    """
 
     model_chm_len = len(model_pos)
     
@@ -160,7 +170,7 @@ def get_msp_data(chm, pred_wind, model_pos, query_pos, n_wind, wind_size, geneti
 
     # Concat with prediction table
     meta = np.array([chm_array, spos, epos, sgpos, egpos, n_snps]).T
-    msp_data = np.concatenate([meta, pred_wind.T], axis=1)
+    msp_data = np.concatenate([meta, pred_labels.T], axis=1)
     msp_data = msp_data.astype(str)
 
     return msp_data
