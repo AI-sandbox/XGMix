@@ -27,7 +27,7 @@ CLAIMER = 'When using this software, please cite: \n' + \
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb"):
+                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb"):
 
         self.chmlen = chmlen
         self.win = win
@@ -60,7 +60,7 @@ class XGMIX():
         self.smooth_acc_train = None
         self.smooth_acc_val = None
 
-    def _train_base(self,train,train_lab,val,val_lab,evaluate=True):
+    def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
 
@@ -134,7 +134,7 @@ class XGMIX():
         return windowed_data.reshape(-1,windowed_data.shape[2]), labels.reshape(-1)
 
 
-    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=False,verbose=True):
+    def _train_smooth(self,train,train_lab,smoothlite=False,verbose=True):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
 
@@ -223,11 +223,11 @@ class XGMIX():
         
         if verbose:
             print("Training base models...")
-        self._train_base(train1,train1_lab,val,val_lab)
+        self._train_base(train1,train1_lab)
 
         if verbose:
             print("Training smoother...")
-        self._train_smooth(train2,train2_lab,val,val_lab)
+        self._train_smooth(train2,train2_lab)
 
         if retrain_base:
             if verbose:
@@ -326,9 +326,9 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
     if verbose:
         print("Initializing XGMix model and training...")
     model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
-    model.train(X_train, labels_window_train, X_val, labels_window_val, smooth_lite, verbose=verbose)
 
     # evaluate model
+    # TODO: move inside self.train
     analysis_path = join_paths(model_repo, "analysis", verb=False)
     CM(labels_window_val.ravel(), model.predict(X_val).ravel(), pop_order, analysis_path, verbose)
     pickle.dump(model, open(model_path,"wb"))
