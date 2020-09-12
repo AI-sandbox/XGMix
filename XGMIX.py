@@ -32,7 +32,7 @@ np.random.seed(SEED)
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb"):
+                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",calibrate=True):
 
         self.chmlen = chmlen
         self.win = win
