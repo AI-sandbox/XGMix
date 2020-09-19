@@ -32,7 +32,8 @@ np.random.seed(SEED)
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb"):
+                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
+                calibrate=True):
 
         self.chmlen = chmlen
         self.win = win
@@ -214,8 +215,8 @@ class XGMIX():
 
     def _evaluate_smooth(self,train,train_lab,val,val_lab,verbose=verbose):
 
-        t_pred = self.predict(train,rtn_calibrated=self.calibrate)
-        v_pred = self.predict(val,rtn_calibrated=self.calibrate)
+        t_pred = self.predict(train)
+        v_pred = self.predict(val)
         self.smooth_acc_train = round(accuracy_score(t_pred.reshape(-1),train_lab.reshape(-1)),4)*100
         self.smooth_acc_val = round(accuracy_score(v_pred.reshape(-1),val_lab.reshape(-1)),4)*100
         if verbose:
@@ -225,7 +226,7 @@ class XGMIX():
     def train(self,train1,train1_lab,train2,train2_lab,val,val_lab,
              retrain_base=True,evaluate=True,smoothlite=False,verbose=True):
 
-        # TODO: close case on smoothlite parameter
+        # TODO: close case on smoothlite parameter (eliminate completely?)
 
         train1, train2, val = [np.array(data).astype("int8") for data in [train1, train2, val]]
         train1_lab, train2_lab, val_lab = [np.array(data).astype("int16") for data in [train1_lab, train2_lab, val_lab]]
@@ -240,17 +241,20 @@ class XGMIX():
             print("Training smoother...")
         self._train_smooth(train2,train2_lab)
 
-        if retrain_base:
-            if verbose:
-                print("Re-training base models...")
-            self._train_base(np.concatenate([train1,train2]), np.concatenate([train1_lab,train2_lab]),val,val_lab)
-
-        # Plug in calibration
         if self.calibrate:
-            print("Calibrating..")
+            if verbose:
+                print("Calibrating..")
             zs = self.predict_proba(train1,rtn_calibrated=False).reshape(-1,self.num_anc) # return uncalibrated probs 
             ys = train1_lab.reshape(-1)
             self.calibrator = calibrator_module(zs,ys,self.num_anc,method ='Isotonic')
+
+        train, train_lab = np.concatenate([train1,train2]), np.concatenate([train1_lab, train2_lab])
+        del train1, train2, train1_lab, train2_lab
+
+        if retrain_base:
+            if verbose:
+                print("Re-training base models...")
+            self._train_base(train, train_lab)
 
         self.training_time = time() - train_time_begin
         
@@ -258,14 +262,16 @@ class XGMIX():
         if evaluate:
             if verbose:
                 print("Evaluating model...")
-            self._evaluate_base(np.concatenate([train1,train2]),np.concatenate([train1_lab,train2_lab]),val,val_lab)
-            self._evaluate_smooth(np.concatenate([train1,train2]),np.concatenate([train1_lab,train2_lab]),val,val_lab)
+            self._evaluate_base(train,train_lab,val,val_lab)
+            self._evaluate_smooth(train,train_lab,val,val_lab)
 
         # Save model
         if self.save is not None:
             pickle.dump(self, open(self.save+"model.pkl", "wb" ))
 
-    def predict(self,tt,rtn_calibrated=True):
+    def predict(self,tt,rtn_calibrated=None):
+        if rtn_calibrated is None:
+            rtn_calibrated = self.calibrate
         if rtn_calibrated:
             y_cal_probs = self.predict_proba(tt,rtn_calibrated=True)
             y_preds = np.argmax(y_cal_probs, axis = 2)
@@ -276,7 +282,11 @@ class XGMIX():
             
         return y_preds
 
-    def predict_proba(self,tt,predict_proba=False,rtn_calibrated=True):
+    def predict_proba(self,tt,rtn_calibrated=None):
+
+        if rtn_calibrated is None:
+            rtn_calibrated = self.calibrate
+
         n,_ = tt.shape
         tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
         proba = self.smooth.predict_proba(tt).reshape(n,-1,self.num_anc)
@@ -290,13 +300,6 @@ class XGMIX():
                 proba = normalize_prob(iso_prob, self.num_anc).reshape(n,-1,self.num_anc)
             else:
                 print("No calibrator found, returning uncalibrated probabilities")
-
-        return proba
-
-    def predict_proba(self,tt,predict_proba=False):
-        n,_ = tt.shape
-        tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
-        proba = self.smooth.predict_proba(tt).reshape(n,-1,self.num_anc)
 
         return proba
 
