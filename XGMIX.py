@@ -14,7 +14,7 @@ from Admixture.utils import read_vcf, join_paths, run_shell_cmd
 from preprocess import load_np_data, data_process
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 from visualization import plot_cm
-from Calibration import *
+from Calibration import calibrator_module, normalize_prob
 
 from config import *
 
@@ -32,7 +32,7 @@ np.random.seed(SEED)
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",calibrate=True):
+                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",calibrate=True):
 
         self.chmlen = chmlen
         self.win = win
@@ -74,7 +74,7 @@ class XGMIX():
         self.smooth_acc_train = None
         self.smooth_acc_val = None
 
-    def _train_base(self,train,train_lab,evaluate=True):
+    def _train_base(self,train,train_lab,val,val_lab,evaluate=True):
 
         self.base = {}
 
@@ -148,7 +148,7 @@ class XGMIX():
         return windowed_data.reshape(-1,windowed_data.shape[2]), labels.reshape(-1)
 
 
-    def _train_smooth(self,train,train_lab,smoothlite=False,verbose=True):
+    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=False,verbose=True):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
 
@@ -234,11 +234,11 @@ class XGMIX():
         
         if verbose:
             print("Training base models...")
-        self._train_base(train1,train1_lab)
+        self._train_base(train1,train1_lab,val,val_lab)
 
         if verbose:
             print("Training smoother...")
-        self._train_smooth(train2,train2_lab)
+        self._train_smooth(train2,train2_lab,val,val_lab)
 
         if retrain_base:
             if verbose:
@@ -290,13 +290,6 @@ class XGMIX():
                 proba = normalize_prob(iso_prob, self.num_anc).reshape(n,-1,self.num_anc)
             else:
                 print("No calibrator found, returning uncalibrated probabilities")
-
-        return proba
-
-    def predict_proba(self,tt,predict_proba=False):
-        n,_ = tt.shape
-        tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
-        proba = self.smooth.predict_proba(tt).reshape(n,-1,self.num_anc)
 
         return proba
 
