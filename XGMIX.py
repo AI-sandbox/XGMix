@@ -14,6 +14,7 @@ from Admixture.utils import read_vcf, join_paths, run_shell_cmd
 from preprocess import load_np_data, data_process
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 from visualization import plot_cm
+from Calibration import calibrator_module, normalize_prob
 
 from config import *
 
@@ -24,10 +25,14 @@ CLAIMER = 'When using this software, please cite: \n' + \
           'ICLR, 2020, Workshop AI4AH \n' + \
           'https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1'
 
+#Set the seed
+SEED=94305
+np.random.seed(SEED)
+
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb"):
+                base_params=[20,4],smooth_params=[100,4],cores=4,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",calibrate=True):
 
         self.chmlen = chmlen
         self.win = win
@@ -43,6 +48,7 @@ class XGMIX():
         self.reg_lambda = reg_lambda
         self.reg_alpha = reg_alpha
         self.model = model
+        self.calibrate = calibrate
 
         self.s_trees, self.s_max_depth = smooth_params
         self.cores = cores
@@ -52,6 +58,14 @@ class XGMIX():
 
         self.base = {}
         self.smooth = None
+        self.calibrator = None
+
+        # model stats
+        self.training_time = None
+        self.base_acc_train = None
+        self.base_acc_val = None
+        self.smooth_acc_train = None
+        self.smooth_acc_val = None
 
         # model stats
         self.training_time = None
@@ -77,7 +91,7 @@ class XGMIX():
             if self.model == "xgb":
                 model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
                         learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                        nthread=self.cores, missing=self.missing)
+                        nthread=self.cores, missing=self.missing, random_state=1)
             if self.model == "rf":
                 from sklearn import ensemble
                 model = ensemble.RandomForestClassifier(n_estimators=self.trees,max_depth=self.max_depth,n_jobs=self.cores) 
@@ -85,7 +99,7 @@ class XGMIX():
                 import lightgbm as lgb
                 model = lgb.LGBMClassifier(n_estimators=self.trees, max_depth=self.max_depth,
                             learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                            nthread=self.cores) 
+                            nthread=self.cores, random_state=1) 
             elif self.model == "cb":
                 import catboost as cb
                 model = cb.CatBoostClassifier(n_estimators=self.trees, max_depth=self.max_depth,
@@ -147,7 +161,7 @@ class XGMIX():
         # Train model
         if self.model == "xgb":
             self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores)
+                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
         elif self.model == "rf":
             self.smooth = ensemble.RandomForestClassifier(n_estimators=self.s_trees, 
                 max_depth=self.s_max_depth, n_jobs=self.cores) 
@@ -156,7 +170,7 @@ class XGMIX():
         elif self.model == "lgb":
             import lightgbm as lgb
             self.smooth = lgb.LGBMClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr,reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores)
+                learning_rate=self.lr,reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
         elif self.model == "cb":
             self.smooth = cb.CatBoostClassifier(n_estimators=self.s_trees, max_depth=self.s_max_depth,
                 learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, thread_count=self.cores,
@@ -200,13 +214,10 @@ class XGMIX():
 
     def _evaluate_smooth(self,train,train_lab,val,val_lab,verbose=verbose):
 
-        tt,ttl = self._get_smooth_data(train,train_lab)
-        vv,vvl = self._get_smooth_data(val,val_lab)
-
-        t_pred = self.smooth.predict(tt)
-        v_pred = self.smooth.predict(vv)
-        self.smooth_acc_train = round(accuracy_score(t_pred,ttl),4)*100
-        self.smooth_acc_val = round(accuracy_score(v_pred,vvl),4)*100
+        t_pred = self.predict(train,rtn_calibrated=self.calibrate)
+        v_pred = self.predict(val,rtn_calibrated=self.calibrate)
+        self.smooth_acc_train = round(accuracy_score(t_pred.reshape(-1),train_lab.reshape(-1)),4)*100
+        self.smooth_acc_val = round(accuracy_score(v_pred.reshape(-1),val_lab.reshape(-1)),4)*100
         if verbose:
             print("Smooth Training Accuracy: {}%".format(self.smooth_acc_train))
             print("Smooth Validation Accuracy: {}%".format(self.smooth_acc_val))
@@ -234,7 +245,12 @@ class XGMIX():
                 print("Re-training base models...")
             self._train_base(np.concatenate([train1,train2]), np.concatenate([train1_lab,train2_lab]),val,val_lab)
 
-        # TODO: Plug in calibration
+        # Plug in calibration
+        if self.calibrate:
+            print("Calibrating..")
+            zs = self.predict_proba(train1,rtn_calibrated=False).reshape(-1,self.num_anc) # return uncalibrated probs 
+            ys = train1_lab.reshape(-1)
+            self.calibrator = calibrator_module(zs,ys,self.num_anc,method ='Isotonic')
 
         self.training_time = time() - train_time_begin
         
@@ -249,17 +265,31 @@ class XGMIX():
         if self.save is not None:
             pickle.dump(self, open(self.save+"model.pkl", "wb" ))
 
-    def predict(self,tt):
-        n,_ = tt.shape
-        tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
-        y_preds = self.smooth.predict(tt)
+    def predict(self,tt,rtn_calibrated=True):
+        if rtn_calibrated:
+            y_cal_probs = self.predict_proba(tt,rtn_calibrated=True)
+            y_preds = np.argmax(y_cal_probs, axis = 2)
+        else:    
+            n,_ = tt.shape
+            tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
+            y_preds = self.smooth.predict(tt).reshape(n,len(self.base))
+            
+        return y_preds
 
-        return y_preds.reshape(n,len(self.base))
-
-    def predict_proba(self,tt,predict_proba=False):
+    def predict_proba(self,tt,predict_proba=False,rtn_calibrated=True):
         n,_ = tt.shape
         tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
         proba = self.smooth.predict_proba(tt).reshape(n,-1,self.num_anc)
+
+        if rtn_calibrated:
+            if self.calibrator is not None:
+                proba_flatten=proba.reshape(-1,self.num_anc)
+                iso_prob=np.zeros((proba_flatten.shape[0],self.num_anc))
+                for i in range(self.num_anc):    
+                    iso_prob[:,i] = self.calibrator[i].transform(proba_flatten[:,i])
+                proba = normalize_prob(iso_prob, self.num_anc).reshape(n,-1,self.num_anc)
+            else:
+                print("No calibrator found, returning uncalibrated probabilities")
 
         return proba
 
