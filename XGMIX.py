@@ -14,7 +14,7 @@ from Admixture.utils import read_vcf, join_paths, run_shell_cmd
 from preprocess import load_np_data, data_process
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 from visualization import plot_cm
-from Calibration import *
+from Calibration import calibrator_module, normalize_prob
 
 from config import *
 
@@ -75,7 +75,7 @@ class XGMIX():
         self.smooth_acc_train = None
         self.smooth_acc_val = None
 
-    def _train_base(self,train,train_lab,evaluate=True):
+    def _train_base(self,train,train_lab,val,val_lab,evaluate=True):
 
         self.base = {}
 
@@ -149,7 +149,7 @@ class XGMIX():
         return windowed_data.reshape(-1,windowed_data.shape[2]), labels.reshape(-1)
 
 
-    def _train_smooth(self,train,train_lab,smoothlite=False,verbose=True):
+    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=False,verbose=True):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
 
@@ -235,11 +235,11 @@ class XGMIX():
         
         if verbose:
             print("Training base models...")
-        self._train_base(train1,train1_lab)
+        self._train_base(train1,train1_lab,val,val_lab)
 
         if verbose:
             print("Training smoother...")
-        self._train_smooth(train2,train2_lab)
+        self._train_smooth(train2,train2_lab,val,val_lab)
 
         if self.calibrate:
             if verbose:
