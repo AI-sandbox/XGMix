@@ -17,7 +17,8 @@ from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 from visualization import plot_cm
 from Calibration import calibrator_module, normalize_prob
 
-from config import *
+from config import verbose, instance_name, run_simulation, num_outs, generations, rm_simulated_data
+from config import model_name, window_size, smooth_size, missing, n_cores, smooth_lite
 
 CLAIMER = 'When using this software, please cite: \n' + \
           'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
