@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import os
 import pickle
+from scipy import stats
 from sklearn.metrics import accuracy_score, confusion_matrix
 import sys
 from time import time
@@ -33,7 +34,7 @@ class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
                 base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
-                calibrate=True):
+                mode_filter_size=5, calibrate=True):
 
         self.chmlen = chmlen
         self.win = win
@@ -49,6 +50,7 @@ class XGMIX():
         self.reg_lambda = reg_lambda
         self.reg_alpha = reg_alpha
         self.model = model
+        self.mode_filter_size = mode_filter_size
         self.calibrate = calibrate
 
         self.s_trees, self.s_max_depth = smooth_params
@@ -269,6 +271,23 @@ class XGMIX():
         if self.save is not None:
             pickle.dump(self, open(self.save+"model.pkl", "wb" ))
 
+    def _mode(self, arr):
+        mode = stats.mode(arr)[0][0]
+        if mode == -stats.mode(-arr)[0][0]:
+            return mode # if mode is unambiguous
+        else:
+            return arr[len(arr)//2] # else return the center (default value)
+
+    def _mode_filter(self, pred, size):
+        if not size:
+            return pred # if size is 0 or None
+        pred_out = np.copy(pred)
+        ends = size//2
+        for i in range(len(pred))[ends:-ends]:
+            pred_out[i] = self._mode(pred[i-ends:i+ends+1])
+        
+        return pred_out
+
     def predict(self,tt,rtn_calibrated=None):
         if rtn_calibrated is None:
             rtn_calibrated = self.calibrate
@@ -279,7 +298,10 @@ class XGMIX():
             n,_ = tt.shape
             tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
             y_preds = self.smooth.predict(tt).reshape(n,len(self.base))
-            
+        
+        if self.mode_filter_size:
+            y_preds = np.apply_along_axis(func1d=self._mode_filter, axis=1, arr=y_preds, size=self.mode_filter_size)
+
         return y_preds
 
     def predict_proba(self,tt,rtn_calibrated=None):
@@ -315,6 +337,19 @@ def load_model(path_to_model, verbose=True):
             model = pickle.load(unzipped)
     else:
         model = pickle.load(open(path_to_model,"rb"))
+
+    # This is temorary while there are still pre-trained models with no calibrate members
+    try:
+        model.calibrate
+    except AttributeError:
+        model.calibrate = None
+
+    # Same for mode filter
+    try:
+        model.mode_filter_size
+    except AttributeError:
+        model.mode_filter_size = 5
+
     return model
 
 def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
