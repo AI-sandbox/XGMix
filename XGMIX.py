@@ -120,14 +120,13 @@ class XGMIX():
         
         print("")
 
-    def _get_smooth_data(self,data,labels):
+    def _get_smooth_data(self,data,labels=None):
 
         data_shape = data.shape
 
         # get base output
         base_out = np.zeros((data.shape[0],len(self.base),self.num_anc),dtype="float32")
         for i in range(len(self.base)):
-
             inp = data[:,i*self.win:(i+1)*self.win]
             if i == len(self.base)-1:
                 inp = data[:,i*self.win:]
@@ -149,7 +148,10 @@ class XGMIX():
                 windowed_data[ppl,win,:] = dat[win:win+self.sws].ravel()
 
         # reshape
-        return windowed_data.reshape(-1,windowed_data.shape[2]), labels.reshape(-1)
+        windowed_data = windowed_data.reshape(-1,windowed_data.shape[2])
+        windowed_labels = None if labels is None else labels.reshape(-1)
+    
+        return windowed_data, windowed_labels
 
 
     def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=False,verbose=True):
@@ -297,7 +299,7 @@ class XGMIX():
             y_preds = np.argmax(y_cal_probs, axis = 2)
         else:    
             n,_ = tt.shape
-            tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
+            tt,_ = self._get_smooth_data(tt)
             y_preds = self.smooth.predict(tt).reshape(n,len(self.base))
         
         if self.mode_filter_size:
@@ -311,7 +313,7 @@ class XGMIX():
             rtn_calibrated = self.calibrate
 
         n,_ = tt.shape
-        tt,_ = self._get_smooth_data(tt,np.zeros((2,2)))
+        tt,_ = self._get_smooth_data(tt)
         proba = self.smooth.predict_proba(tt).reshape(n,-1,self.num_anc)
 
         if rtn_calibrated:
