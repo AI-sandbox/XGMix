@@ -21,6 +21,10 @@ from Calibration import calibrator_module, normalize_prob
 from config import verbose, instance_name, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
 from config import model_name, window_size, smooth_size, missing, retrain_base, n_cores
 
+# The simulation can't handle generation 0, add it separetly
+gen_0 = 0 in generations
+generations = list(filter(lambda x: x != 0, generations))
+
 CLAIMER = 'When using this software, please cite: \n' + \
           'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
           '"XGMix: Local-Ancestry Inference With Stacked XGBoost" \n' + \
@@ -383,13 +387,13 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
     X_train1_raw, labels_train1_raw, X_train2_raw, labels_train2_raw, X_val_raw, labels_val_raw = [load_np_data(f) for f in train_val_files]
 
     # adding generation 0
-    if 0 in generations:
+    if gen_0:
         if verbose:
             print("Including generation 0...")
         
         # get it
         gen_0_sets = ["train1", "train2"]
-        X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 = get_gen_0(data_path=data_path + "/chm" + chm, gen_0_sets)
+        X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 = get_gen_0(data_path + "/chm" + chm, en_0_sets)
 
         # add it
         X_train1_raw = np.concatenate([X_train1_raw, X_train1_raw_gen_0])
@@ -399,7 +403,6 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
 
         # delete it
         del X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 
-
 
     # reshape according to window size
     X_train1, labels_window_train1 = data_process(X_train1_raw, labels_train1_raw, window_size, missing)
@@ -469,14 +472,11 @@ def main(args, verbose=True):
                                                 pop_ids = pop_ids,
                                                 sample_map_paths=sample_map_paths)
 
-            # The following simulation can't handle generation 0, add it later
-            gens = filter(lambda x: x != 0, generations) 
-
             # Simulating data
             if verbose:
-                print("Running simulation")
+                print("Running simulation...")
             main_admixture(args.chm, data_path, set_names, sample_map_paths, sample_map_idxs,
-                           args.reference_file, args.genetic_map_file, num_outs, gens)
+                           args.reference_file, args.genetic_map_file, num_outs, generations)
 
             if verbose:
                 print("Simulation done.")
