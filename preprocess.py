@@ -28,6 +28,38 @@ def load_np_data(files, verb=False):
     data = np.concatenate(data,axis=0)
     return data
 
+def vcf2npy(vcf_file):
+    vcf_data = allel.read_vcf(vcf_file)
+    chm_len, nout, _ = vcf_data["calldata/GT"].shape
+    mat_vcf_2d = vcf_data["calldata/GT"].reshape(chm_len,nout*2).T
+    return mat_vcf_2d.astype('int16')
+
+def map2npy(map_file, shape, pop_order):
+    sample_map = pd.read_csv(map_file, sep="\t", header=None)
+    sample_map.columns = ["sample", "ancestry"]
+    y = np.zeros(shape, dtype='int16')
+    for i, a in enumerate(sample_map["ancestry"]):
+        a_numeric = np.where(a==pop_order)[0][0]
+        y[2*i:2*i+2] = a_numeric
+    return y
+
+def get_gen_0(data_path, sets):
+    gen_0_path = data_path + "/simulation_output"
+
+    population_map_file = data_path+"/populations.txt"
+    pop_order = np.genfromtxt(population_map_file, dtype="str")
+    
+    out = []
+    for s in sets:
+        X_vcf = gen_0_path + "/"+s+"/founders.vcf"
+        y_map = gen_0_path + "/"+s+"/founders.map"
+        X_raw_gen_0 = vcf2npy(X_vcf)
+        y_raw_gen_0 = map2npy(y_map, X_raw_gen_0.shape, pop_order)
+        out.append(X_raw_gen_0)
+        out.append(y_raw_gen_0)
+    
+    return out
+
 
 def window_reshape(data, win_size):
     """

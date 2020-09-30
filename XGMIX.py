@@ -10,15 +10,16 @@ import sys
 from time import time
 import xgboost as xgb
 
-from Admixture.Admixture import split_sample_map, main_admixture
+from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
 from Admixture.utils import read_vcf, join_paths, run_shell_cmd
-from preprocess import load_np_data, data_process
+
+from preprocess import load_np_data, data_process, vcf2npy, map2npy, get_gen_0
 from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
 from visualization import plot_cm
 from Calibration import calibrator_module, normalize_prob
 
-from config import verbose, instance_name, run_simulation, num_outs, generations, rm_simulated_data
-from config import model_name, window_size, smooth_size, missing, n_cores, smooth_lite
+from config import verbose, instance_name, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
+from config import model_name, window_size, smooth_size, missing, retrain_base, n_cores
 
 CLAIMER = 'When using this software, please cite: \n' + \
           'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
@@ -27,14 +28,12 @@ CLAIMER = 'When using this software, please cite: \n' + \
           'ICLR, 2020, Workshop AI4AH \n' + \
           'https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1'
 
-#Set the seed
-SEED=94305
-np.random.seed(SEED)
+np.random.seed(94305)
 
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[200,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
+                base_params=[20,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
                 mode_filter_size=5, calibrate=True):
 
         self.chmlen = chmlen
@@ -78,7 +77,7 @@ class XGMIX():
         self.smooth_acc_train = None
         self.smooth_acc_val = None
 
-    def _train_base(self,train,train_lab,val,val_lab,evaluate=True):
+    def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
 
@@ -154,15 +153,9 @@ class XGMIX():
         return windowed_data, windowed_labels
 
 
-    def _train_smooth(self,train,train_lab,val,val_lab,smoothlite=False,verbose=True):
+    def _train_smooth(self,train,train_lab,verbose=True):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
-
-        # # Smooth lite option - to use less data for the smoother - faster if the data is good
-        smoothlite = smoothlite if smoothlite else len(tt)
-        indices = np.random.choice(len(tt), min(smoothlite,len(tt)), replace=False)
-        tt = tt[indices]
-        ttl = ttl[indices]
 
         # Train model
         if self.model == "xgb":
@@ -229,9 +222,7 @@ class XGMIX():
             print("Smooth Validation Accuracy: {}%".format(self.smooth_acc_val))
 
     def train(self,train1,train1_lab,train2,train2_lab,val,val_lab,
-             retrain_base=True,evaluate=True,smoothlite=False,verbose=True):
-
-        # TODO: close case on smoothlite parameter (eliminate completely?)
+             retrain_base=True,evaluate=True,verbose=True):
 
         train1, train2, val = [np.array(data).astype("int8") for data in [train1, train2, val]]
         train1_lab, train2_lab, val_lab = [np.array(data).astype("int16") for data in [train1_lab, train2_lab, val_lab]]
@@ -240,11 +231,11 @@ class XGMIX():
         
         if verbose:
             print("Training base models...")
-        self._train_base(train1,train1_lab,val,val_lab)
+        self._train_base(train1,train1_lab)
 
         if verbose:
             print("Training smoother...")
-        self._train_smooth(train2,train2_lab,val,val_lab)
+        self._train_smooth(train2,train2_lab)
 
         if self.calibrate:
             if verbose:
@@ -355,19 +346,20 @@ def load_model(path_to_model, verbose=True):
 
     return model
 
-def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
-          smooth_size = 75, missing = 0.0, n_cores = 16, smooth_lite = 10000, verbose=True):
+def train(chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, verbose):
 
     if verbose:
         print("Preprocessing data...")
     
     # ------------------ Config ------------------
     model_name += "_chm_" + chm
-    model_repo = join_paths("./models", model_name, verb=False) 
+    model_repo = join_paths("./"+instance_name, "models", verb=False)
+    model_repo = join_paths(model_repo, model_name, verb=False)
     model_path = model_repo + "/" + model_name + ".pkl"
 
-    train_paths = [data_path + "/chm" + chm + "/simulation_output/train/gen_" + str(gen) + "/" for gen in generations]
-    val_paths   = [data_path + "/chm" + chm + "/simulation_output/val/gen_"   + str(gen) + "/" for gen in generations] # only validate on 4th gen
+    train1_paths = [data_path + "/chm" + chm + "/simulation_output/train1/gen_" + str(gen) + "/" for gen in generations]
+    train2_paths = [data_path + "/chm" + chm + "/simulation_output/train2/gen_" + str(gen) + "/" for gen in generations]
+    val_paths    = [data_path + "/chm" + chm + "/simulation_output/val/gen_"   + str(gen) + "/" for gen in generations] # only validate on 4th gen
 
     position_map_file   = data_path + "/chm"+ chm + "/positions.txt"
     reference_map_file  = data_path + "/chm"+ chm + "/references.txt"
@@ -376,21 +368,43 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
     # ------------------ Process data ------------------
     # gather feature data files (binary representation of variants)
     X_fname = "mat_vcf_2d.npy"
-    X_train_files = [p + X_fname for p in train_paths]
-    X_val_files   = [p + X_fname for p in val_paths]
+    X_train1_files = [p + X_fname for p in train1_paths]
+    X_train2_files = [p + X_fname for p in train2_paths]
+    X_val_files    = [p + X_fname for p in val_paths]
 
     # gather label data files (population)
     labels_fname = "mat_map.npy"
-    labels_train_files = [p + labels_fname for p in train_paths]
+    labels_train1_files = [p + labels_fname for p in train1_paths]
+    labels_train2_files = [p + labels_fname for p in train2_paths]
     labels_val_files   = [p + labels_fname for p in val_paths]
 
     # load the data
-    train_val_files = [X_train_files, labels_train_files, X_val_files, labels_val_files]
-    X_train_raw, labels_train_raw, X_val_raw, labels_val_raw = [load_np_data(f) for f in train_val_files]
+    train_val_files = [X_train1_files, labels_train1_files, X_train2_files, labels_train2_files, X_val_files, labels_val_files]
+    X_train1_raw, labels_train1_raw, X_train2_raw, labels_train2_raw, X_val_raw, labels_val_raw = [load_np_data(f) for f in train_val_files]
+
+    # adding generation 0
+    if 0 in generations:
+        if verbose:
+            print("Including generation 0...")
+        
+        # get it
+        gen_0_sets = ["train1", "train2"]
+        X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 = get_gen_0(data_path=data_path + "/chm" + chm, gen_0_sets)
+
+        # add it
+        X_train1_raw = np.concatenate([X_train1_raw, X_train1_raw_gen_0])
+        labels_train1_raw = np.concatenate([labels_train1_raw, y_train1_raw_gen_0])
+        X_train2_raw = np.concatenate([X_train2_raw, X_train2_raw_gen_0])
+        labels_train2_raw = np.concatenate([labels_train2_raw, y_train2_raw_gen_0])
+
+        # delete it
+        del X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 
+
 
     # reshape according to window size
-    X_train, labels_window_train = data_process(X_train_raw, labels_train_raw, window_size, missing)
-    X_val, labels_window_val     = data_process(X_val_raw, labels_val_raw, window_size, missing)
+    X_train1, labels_window_train1 = data_process(X_train1_raw, labels_train1_raw, window_size, missing)
+    X_train2, labels_window_train2 = data_process(X_train2_raw, labels_train2_raw, window_size, missing)
+    X_val, labels_window_val       = data_process(X_val_raw, labels_val_raw, window_size, missing)
 
     # necessary arguments for model
     snp_pos = np.loadtxt(position_map_file,  delimiter='\n').astype("int")
@@ -404,7 +418,8 @@ def train(chm, model_name, data_path, generations = [2,4,6], window_size = 5000,
     if verbose:
         print("Initializing XGMix model and training...")
     model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
-    model.train(X_train, labels_window_train, X_val, labels_window_val, smooth_lite, verbose=verbose)
+    model.train(X_train1, labels_window_train1, X_train2, labels_window_train2, X_val, labels_window_val,
+                retrain_base=retrain_base, verbose=verbose)
 
     # evaluate model
     analysis_path = join_paths(model_repo, "analysis", verb=False)
@@ -436,26 +451,41 @@ def main(args, verbose=True):
     elif args.mode == "train":
 
         # Set output path
-        data_path = join_paths('./generated_data', instance_name, verb=False)
+        data_path = join_paths('./'+instance_name, 'generated_data', verb=False)
 
         # Running simulation. If data is already simulated, skipping can save a lot of time
         if run_simulation:
-            # Splitting the reference sample in train/val/test
-            sub_instance_names = ["train", "val", "test"]
-            sample_map_files, sample_map_files_idxs = split_sample_map(data_path, args.sample_map_file)
+
+            # Splitting the data into train1 (base), train2 (smoother), val, test 
+            if verbose:
+                print("Reading sample maps and splitting in train/val/test...")
+            samples, pop_ids = read_sample_map(args.sample_map_file, population_path = data_path)
+            set_names = ["train1", "train2", "val", "test"]
+            sample_map_path = join_paths(data_path, "sample_maps", verb=verbose)
+            sample_map_paths = [sample_map_path+"/"+s+".map" for s in set_names]
+            sample_map_idxs = split_sample_map(sample_ids = np.array(samples["Sample"]),
+                                                populations = np.array(samples["Population"]),
+                                                ratios = founders_ratios,
+                                                pop_ids = pop_ids,
+                                                sample_map_paths=sample_map_paths)
+
+            # The following simulation can't handle generation 0, add it later
+            gens = filter(lambda x: x != 0, generations) 
 
             # Simulating data
-            main_admixture(args.chm, data_path, sub_instance_names, sample_map_files, sample_map_files_idxs,
-                        args.reference_file, args.genetic_map_file, num_outs, generations)
+            if verbose:
+                print("Running simulation")
+            main_admixture(args.chm, data_path, set_names, sample_map_paths, sample_map_idxs,
+                           args.reference_file, args.genetic_map_file, num_outs, gens)
 
             if verbose:
                 print("Simulation done.")
                 print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
         else:
-            print("Using simulated data from " + data_path + "...")
+            print("Using simulated data from " + data_path + " ...")
 
         # Processing data, init and training model
-        model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, smooth_lite)
+        model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, verbose)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
@@ -473,7 +503,7 @@ def main(args, verbose=True):
 
         # writing the result to disc
         if verbose:
-            print("Writing analyzis to disc...")
+            print("Writing analysis to disc...")
         msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos, query_pos,
                                 model.num_windows, model.win, args.genetic_map_file)
         write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
