@@ -1,6 +1,7 @@
 import allel
 import gzip
 import numpy as np
+import pandas as pd
 from scipy import stats
 
 """
@@ -43,10 +44,9 @@ def map2npy(map_file, shape, pop_order):
         y[2*i:2*i+2] = a_numeric
     return y
 
-def get_gen_0(data_path, sets):
+def get_gen_0(data_path, population_map_file, sets):
+    
     gen_0_path = data_path + "/simulation_output"
-
-    population_map_file = data_path+"/populations.txt"
     pop_order = np.genfromtxt(population_map_file, dtype="str")
     
     out = []

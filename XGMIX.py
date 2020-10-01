@@ -393,7 +393,7 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
         
         # get it
         gen_0_sets = ["train1", "train2"]
-        X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 = get_gen_0(data_path + "/chm" + chm, gen_0_sets)
+        X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 = get_gen_0(data_path + "/chm" + chm, population_map_file, gen_0_sets)
 
         # add it
         X_train1_raw = np.concatenate([X_train1_raw, X_train1_raw_gen_0])
