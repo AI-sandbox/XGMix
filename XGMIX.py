@@ -19,7 +19,7 @@ from visualization import plot_cm
 from Calibration import calibrator_module, normalize_prob
 
 from config import verbose, instance_name, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
-from config import model_name, window_size, smooth_size, missing, retrain_base, n_cores
+from config import model_name, window_size, smooth_size, missing, retrain_base, calibrate, n_cores
 
 # The simulation can't handle generation 0, add it separetly
 gen_0 = 0 in generations
@@ -37,7 +37,7 @@ np.random.seed(94305)
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[20,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
+                base_params=[20,4],smooth_params=[100,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
                 mode_filter_size=5, calibrate=True):
 
         self.chmlen = chmlen
@@ -228,46 +228,51 @@ class XGMIX():
     def train(self,train1,train1_lab,train2,train2_lab,val,val_lab,
              retrain_base=True,evaluate=True,verbose=True):
 
+        train_time_begin = time()
+
         train1, train2, val = [np.array(data).astype("int8") for data in [train1, train2, val]]
         train1_lab, train2_lab, val_lab = [np.array(data).astype("int16") for data in [train1_lab, train2_lab, val_lab]]
 
-        train_time_begin = time()
+        # Store both training data in one np.array for memory efficency
+        train_split_idx = len(train1)
+        train, train_lab = np.concatenate([train1, train2]), np.concatenate([train1_lab, train2_lab])
+        del train1, train2, train1_lab, train2_lab
         
         if verbose:
             print("Training base models...")
-        self._train_base(train1,train1_lab)
+        self._train_base(train[:train_split_idx], train_lab[:train_split_idx])
 
         if verbose:
             print("Training smoother...")
-        self._train_smooth(train2,train2_lab)
-
-        if self.calibrate:
-            if verbose:
-                print("Calibrating..")
-            zs = self.predict_proba(train1,rtn_calibrated=False).reshape(-1,self.num_anc) # return uncalibrated probs 
-            ys = train1_lab.reshape(-1)
-            self.calibrator = calibrator_module(zs,ys,self.num_anc,method ='Isotonic')
-
-        train, train_lab = np.concatenate([train1,train2]), np.concatenate([train1_lab, train2_lab])
-        del train1, train2, train1_lab, train2_lab
+        self._train_smooth(train[train_split_idx:], train_lab[train_split_idx:])
 
         if retrain_base:
+            # Re-using the smoother-training-data to re-train the base models
             if verbose:
                 print("Re-training base models...")
             self._train_base(train, train_lab)
 
-        self.training_time = time() - train_time_begin
-        
+        if self.calibrate:
+            # calibrates the predictions to be balanced w.r.t. the train1 class distribution
+            if verbose:
+                print("Calibrating...")
+            zs = self.predict_proba(train[:train_split_idx],rtn_calibrated=False).reshape(-1,self.num_anc)
+            self.calibrator = calibrator_module(zs, train_lab[:train_split_idx].reshape(-1), self.num_anc, method ='Isotonic')        
+            del zs 
+
         # Evaluate model
         if evaluate:
             if verbose:
                 print("Evaluating model...")
-            self._evaluate_base(train,train_lab,val,val_lab)
-            self._evaluate_smooth(train,train_lab,val,val_lab)
+            self._evaluate_base(train[:train_split_idx], train_lab[:train_split_idx],   val,val_lab)
+            self._evaluate_smooth(train[train_split_idx:], train_lab[train_split_idx:], val,val_lab)
 
         # Save model
         if self.save is not None:
             pickle.dump(self, open(self.save+"model.pkl", "wb" ))
+
+        self.training_time = time() - train_time_begin
+
 
     def _mode(self, arr):
         mode = stats.mode(arr)[0][0]
@@ -409,6 +414,8 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
     X_train2, labels_window_train2 = data_process(X_train2_raw, labels_train2_raw, window_size, missing)
     X_val, labels_window_val       = data_process(X_val_raw, labels_val_raw, window_size, missing)
 
+    del X_train1_raw, X_train2_raw, X_val_raw, labels_train1_raw, labels_train2_raw, labels_val_raw
+
     # necessary arguments for model
     snp_pos = np.loadtxt(position_map_file,  delimiter='\n').astype("int")
     snp_ref = np.loadtxt(reference_map_file, delimiter='\n', dtype=str)
@@ -420,7 +427,7 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
     # init, train, evaluate and save model
     if verbose:
         print("Initializing XGMix model and training...")
-    model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
+    model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, calibrate=calibrate, cores=n_cores)
     model.train(X_train1, labels_window_train1, X_train2, labels_window_train2, X_val, labels_window_val,
                 retrain_base=retrain_base, verbose=verbose)
 
