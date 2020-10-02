@@ -15,4 +15,5 @@ window_size = 750    # window size of the XGMix model
 smooth_size = 75     # how many windows to aggregate over in second phase
 missing = 0.0        # fraction in [0,1) of how much to simulate missing data during training
 retrain_base = True  # for retraining base models with [train1, train2] once the smoother has been trained with train2
-n_cores = 24         # how many units of cpu to use
+calibrate = True
+n_cores = 30         # how many units of cpu to use
