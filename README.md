@@ -48,7 +48,7 @@ where the first 4 arguments are described above in the pre-trained setting and
 The program uses these two files as input to [rfmix's](https://github.com/slowkoni/rfmix) simulation algorithm to create training data for the model.
 
 ### Calibration
-XGmix output is calibrated when training a new model which means that the output probabilities accurately reflect the confidence of the prediction made by the model. 
+XGmix output probabilities might not reflect the true confidence / accuracy of the predictions. By setting to True calibration when training a new model, Isotropic Regression is used to match the predicted probabilities to calibrated probabilities. For example, in a calibrated model, predictions with a probability 80% will be correct 80% of the time.
 
 ### Advanced Options
 More advanced configuration settings can be found in *config.py*. 
