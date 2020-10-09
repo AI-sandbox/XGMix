@@ -47,7 +47,7 @@ where the first 4 arguments are described above in the pre-trained setting and
 
 The program uses these two files as input to [rfmix's](https://github.com/slowkoni/rfmix) simulation algorithm to create training data for the model.
 
-## Calibration
+### Calibration
 XGmix output is calibrated when training a new model which means that the output probabilities accurately reflect the confidence of the prediction made by the model. 
 
 ### Advanced Options
