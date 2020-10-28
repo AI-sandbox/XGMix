@@ -93,24 +93,21 @@ def calibrator_module(zs,ys,n_classes,method):
     elif method =='Isotonic':
 
         # binarize class labels
-        lb = preprocessing.LabelBinarizer()
-        lb.fit(ys)
+        lb = preprocessing.LabelBinarizer().fit(ys)
         y_cal_ohe = lb.transform(ys)
         del lb
         
         calibrator = []
-        calibrated_prob = np.zeros((ys.shape[0],n_classes))
+        # calibrated_prob = np.zeros((ys.shape[0],n_classes))
         
         for i in range(n_classes):    
             calibrator.append(IsotonicRegression(out_of_bounds = 'clip').fit(zs[:,i], y_cal_ohe[:,i]))
-            calibrated_prob[:,i] = calibrator[i].transform(zs[:,i])
-        del y_cal_ohe
+            # calibrated_prob[:,i] = calibrator[i].transform(zs[:,i])
 
-        # Normalize the probabilities
-        calibrated_prob = normalize_prob(calibrated_prob,n_classes)
-
-        calibration_error = cal.get_calibration_error(calibrated_prob, ys)
-        #print("Scaling-binning L2 calibration error with %s is %.2f%%" % (method, (100 * calibration_error)))
+        # # Normalize the probabilities
+        # calibrated_prob = normalize_prob(calibrated_prob,n_classes)
+        # calibration_error = cal.get_calibration_error(calibrated_prob, ys)
+        # print("Scaling-binning L2 calibration error with %s is %.2f%%" % (method, (100 * calibration_error)))
         
     return calibrator
 
