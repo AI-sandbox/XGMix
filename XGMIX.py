@@ -95,27 +95,9 @@ class XGMIX():
                 tt = train[:,idx*self.win:]
 
             # fit model
-            if self.model == "xgb":
-                model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
-                        learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                        nthread=self.cores, missing=self.missing, random_state=1)
-            if self.model == "rf":
-                from sklearn import ensemble
-                model = ensemble.RandomForestClassifier(n_estimators=self.trees,max_depth=self.max_depth,n_jobs=self.cores) 
-            elif self.model == "lgb":
-                import lightgbm as lgb
-                model = lgb.LGBMClassifier(n_estimators=self.trees, max_depth=self.max_depth,
-                            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                            nthread=self.cores, random_state=1) 
-            elif self.model == "cb":
-                import catboost as cb
-                model = cb.CatBoostClassifier(n_estimators=self.trees, max_depth=self.max_depth,
-                            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, 
-                            thread_count=self.cores, verbose=0)
-            elif self.model == "svm":
-                from sklearn import svm
-                model = svm.SVC(C=100., gamma=0.001, probability=True)
-
+            model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
+                    learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
+                    nthread=self.cores, missing=self.missing, random_state=1) 
             model.fit(tt,ll_t)
             self.base["model"+str(idx*self.win)] = model
 
@@ -160,27 +142,8 @@ class XGMIX():
     def _train_smooth(self,train,train_lab,verbose=True):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
-
-        # Train model
-        if self.model == "xgb":
-            self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
-        elif self.model == "rf":
-            self.smooth = ensemble.RandomForestClassifier(n_estimators=self.s_trees, 
-                max_depth=self.s_max_depth, n_jobs=self.cores) 
-        elif self.model == "lr":
-            self.smooth = linear_model.LogisticRegression(n_jobs=self.cores)
-        elif self.model == "lgb":
-            import lightgbm as lgb
-            self.smooth = lgb.LGBMClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr,reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
-        elif self.model == "cb":
-            self.smooth = cb.CatBoostClassifier(n_estimators=self.s_trees, max_depth=self.s_max_depth,
-                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, thread_count=self.cores,
-                verbose=0)
-        elif self.model == "svm":
-            self.smooth = svm.SVC(C=100., gamma=0.001, probability=True)
-    
+        self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
+            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
         self.smooth.fit(tt,ttl)
 
     def _evaluate_base(self,train,train_lab,val,val_lab,verbose=True):
