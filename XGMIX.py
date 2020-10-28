@@ -74,13 +74,6 @@ class XGMIX():
         self.smooth_acc_train = None
         self.smooth_acc_val = None
 
-        # model stats
-        self.training_time = None
-        self.base_acc_train = None
-        self.base_acc_val = None
-        self.smooth_acc_train = None
-        self.smooth_acc_val = None
-
     def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
