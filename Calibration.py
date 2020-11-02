@@ -81,9 +81,6 @@ def plot_reliability_curve(pred_prob,y_cal,pop_order,method = 'Uncalibrated', bi
 
 
 def calibrator_module(zs,ys,n_classes,method):
-    
-    calibration_error = cal.get_calibration_error(zs, ys)
-    #print("Scaling-binning L2 calibration error before calibration is %.2f%%" % (100 * calibration_error))
         
     if method == 'Platt':
         calibrator = cal.PlattBinnerMarginalCalibrator(n_classes, num_bins=200)
@@ -94,29 +91,23 @@ def calibrator_module(zs,ys,n_classes,method):
         print("Scaling-binning L2 calibration error with %s is %.2f%%" % (method, (100 * calibration_error)))
         
     elif method =='Isotonic':
-        # calibrate the probs
-        probs_flattened = zs
-        y_cal = ys
 
         # binarize class labels
-        lb = preprocessing.LabelBinarizer()
-        lb.fit(ys)
+        lb = preprocessing.LabelBinarizer().fit(ys)
         y_cal_ohe = lb.transform(ys)
+        del lb
         
         calibrator = []
-        calibrated_prob = np.zeros((ys.shape[0],n_classes))
+        # calibrated_prob = np.zeros((ys.shape[0],n_classes))
         
         for i in range(n_classes):    
-            calibrator.append(IsotonicRegression(out_of_bounds = 'clip').fit(zs[:,i],\
-                        y_cal_ohe[:,i]))
-            calibrated_prob[:,i] = calibrator[i].transform(zs[:,i])
+            calibrator.append(IsotonicRegression(out_of_bounds = 'clip').fit(zs[:,i], y_cal_ohe[:,i]))
+            # calibrated_prob[:,i] = calibrator[i].transform(zs[:,i])
 
-
-        # Normalize the probabilities
-        calibrated_prob = normalize_prob(calibrated_prob,n_classes)
-
-        calibration_error = cal.get_calibration_error(calibrated_prob, ys)
-        #print("Scaling-binning L2 calibration error with %s is %.2f%%" % (method, (100 * calibration_error)))
+        # # Normalize the probabilities
+        # calibrated_prob = normalize_prob(calibrated_prob,n_classes)
+        # calibration_error = cal.get_calibration_error(calibrated_prob, ys)
+        # print("Scaling-binning L2 calibration error with %s is %.2f%%" % (method, (100 * calibration_error)))
         
     return calibrator
 

@@ -3,6 +3,7 @@ import gzip
 import logging
 import numpy as np
 import os
+import pandas as pd
 import pickle
 from scipy import stats
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -19,7 +20,7 @@ from visualization import plot_cm
 from Calibration import calibrator_module, normalize_prob
 
 from config import verbose, instance_name, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
-from config import model_name, window_size, smooth_size, missing, retrain_base, n_cores
+from config import model_name, window_size_cM, smooth_size, missing, retrain_base, calibrate, n_cores
 
 # The simulation can't handle generation 0, add it separetly
 gen_0 = 0 in generations
@@ -37,7 +38,7 @@ np.random.seed(94305)
 class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
-                base_params=[20,4],smooth_params=[200,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
+                base_params=[20,4],smooth_params=[100,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
                 mode_filter_size=5, calibrate=True):
 
         self.chmlen = chmlen
@@ -74,13 +75,6 @@ class XGMIX():
         self.smooth_acc_train = None
         self.smooth_acc_val = None
 
-        # model stats
-        self.training_time = None
-        self.base_acc_train = None
-        self.base_acc_val = None
-        self.smooth_acc_train = None
-        self.smooth_acc_val = None
-
     def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
@@ -95,27 +89,9 @@ class XGMIX():
                 tt = train[:,idx*self.win:]
 
             # fit model
-            if self.model == "xgb":
-                model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
-                        learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                        nthread=self.cores, missing=self.missing, random_state=1)
-            if self.model == "rf":
-                from sklearn import ensemble
-                model = ensemble.RandomForestClassifier(n_estimators=self.trees,max_depth=self.max_depth,n_jobs=self.cores) 
-            elif self.model == "lgb":
-                import lightgbm as lgb
-                model = lgb.LGBMClassifier(n_estimators=self.trees, max_depth=self.max_depth,
-                            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                            nthread=self.cores, random_state=1) 
-            elif self.model == "cb":
-                import catboost as cb
-                model = cb.CatBoostClassifier(n_estimators=self.trees, max_depth=self.max_depth,
-                            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, 
-                            thread_count=self.cores, verbose=0)
-            elif self.model == "svm":
-                from sklearn import svm
-                model = svm.SVC(C=100., gamma=0.001, probability=True)
-
+            model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
+                    learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
+                    nthread=self.cores, missing=self.missing, random_state=1) 
             model.fit(tt,ll_t)
             self.base["model"+str(idx*self.win)] = model
 
@@ -123,20 +99,27 @@ class XGMIX():
         
         print("")
 
-    def _get_smooth_data(self,data,labels=None):
+    def _get_smooth_data(self, data=None, labels=None, base_out = None, return_base_out=False):
 
-        data_shape = data.shape
+        if base_out is None:
+            n_ind = data.shape[0]
 
-        # get base output
-        base_out = np.zeros((data.shape[0],len(self.base),self.num_anc),dtype="float32")
-        for i in range(len(self.base)):
-            inp = data[:,i*self.win:(i+1)*self.win]
-            if i == len(self.base)-1:
-                inp = data[:,i*self.win:]
-            base_model = self.base["model"+str(i*self.win)]
-            base_out[:,i,base_model.classes_] = base_model.predict_proba(inp)
-
-        del data, inp, base_model
+            # get base output
+            base_out = np.zeros((data.shape[0],len(self.base),self.num_anc),dtype="float32")
+            for i in range(len(self.base)):
+                inp = data[:,i*self.win:(i+1)*self.win]
+                if i == len(self.base)-1:
+                    inp = data[:,i*self.win:]
+                base_model = self.base["model"+str(i*self.win)]
+                base_out[:,i,base_model.classes_] = base_model.predict_proba(inp)
+    
+            if return_base_out:
+                return base_out
+                
+            del data, inp, base_model
+            
+        else:
+            n_ind = base_out.shape[0]
 
         # pad it.
         pad_left = np.flip(base_out[:,0:self.pad_size,:],axis=1)
@@ -145,7 +128,7 @@ class XGMIX():
         del base_out
 
         # window it.
-        windowed_data = np.zeros((data_shape[0],len(self.base),self.num_anc*self.sws),dtype="float32")
+        windowed_data = np.zeros((n_ind,len(self.base),self.num_anc*self.sws),dtype="float32")
         for ppl,dat in enumerate(base_out_padded):
             for win in range(windowed_data.shape[1]):
                 windowed_data[ppl,win,:] = dat[win:win+self.sws].ravel()
@@ -160,27 +143,8 @@ class XGMIX():
     def _train_smooth(self,train,train_lab,verbose=True):
 
         tt,ttl = self._get_smooth_data(train,train_lab)
-
-        # Train model
-        if self.model == "xgb":
-            self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
-        elif self.model == "rf":
-            self.smooth = ensemble.RandomForestClassifier(n_estimators=self.s_trees, 
-                max_depth=self.s_max_depth, n_jobs=self.cores) 
-        elif self.model == "lr":
-            self.smooth = linear_model.LogisticRegression(n_jobs=self.cores)
-        elif self.model == "lgb":
-            import lightgbm as lgb
-            self.smooth = lgb.LGBMClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-                learning_rate=self.lr,reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
-        elif self.model == "cb":
-            self.smooth = cb.CatBoostClassifier(n_estimators=self.s_trees, max_depth=self.s_max_depth,
-                learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, thread_count=self.cores,
-                verbose=0)
-        elif self.model == "svm":
-            self.smooth = svm.SVC(C=100., gamma=0.001, probability=True)
-    
+        self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
+            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
         self.smooth.fit(tt,ttl)
 
     def _evaluate_base(self,train,train_lab,val,val_lab,verbose=True):
@@ -228,46 +192,53 @@ class XGMIX():
     def train(self,train1,train1_lab,train2,train2_lab,val,val_lab,
              retrain_base=True,evaluate=True,verbose=True):
 
+        train_time_begin = time()
+
         train1, train2, val = [np.array(data).astype("int8") for data in [train1, train2, val]]
         train1_lab, train2_lab, val_lab = [np.array(data).astype("int16") for data in [train1_lab, train2_lab, val_lab]]
 
-        train_time_begin = time()
+        # Store both training data in one np.array for memory efficency
+        train_split_idx = int(len(train1))
+        train, train_lab = np.concatenate([train1, train2]), np.concatenate([train1_lab, train2_lab])
+        del train1, train2, train1_lab, train2_lab
         
         if verbose:
             print("Training base models...")
-        self._train_base(train1,train1_lab)
+        self._train_base(train[:train_split_idx], train_lab[:train_split_idx])
 
         if verbose:
             print("Training smoother...")
-        self._train_smooth(train2,train2_lab)
-
-        if self.calibrate:
-            if verbose:
-                print("Calibrating..")
-            zs = self.predict_proba(train1,rtn_calibrated=False).reshape(-1,self.num_anc) # return uncalibrated probs 
-            ys = train1_lab.reshape(-1)
-            self.calibrator = calibrator_module(zs,ys,self.num_anc,method ='Isotonic')
-
-        train, train_lab = np.concatenate([train1,train2]), np.concatenate([train1_lab, train2_lab])
-        del train1, train2, train1_lab, train2_lab
+        self._train_smooth(train[train_split_idx:], train_lab[train_split_idx:])
 
         if retrain_base:
+            # Re-using the smoother-training-data to re-train the base models
             if verbose:
                 print("Re-training base models...")
             self._train_base(train, train_lab)
 
-        self.training_time = time() - train_time_begin
-        
+        if self.calibrate:
+            # calibrates the predictions to be balanced w.r.t. the train1 class distribution
+            if verbose:
+                print("Calibrating...")
+            calibrate_light = int(0.05*train_split_idx)
+            calibrate_idxs = np.random.choice(train_split_idx,calibrate_light,replace=False)
+            zs = self.predict_proba(train[calibrate_idxs],rtn_calibrated=False).reshape(-1,self.num_anc)
+            self.calibrator = calibrator_module(zs, train_lab[calibrate_idxs].reshape(-1), self.num_anc, method ='Isotonic')        
+            del zs 
+
         # Evaluate model
         if evaluate:
             if verbose:
                 print("Evaluating model...")
-            self._evaluate_base(train,train_lab,val,val_lab)
-            self._evaluate_smooth(train,train_lab,val,val_lab)
+            self._evaluate_base(train[:train_split_idx], train_lab[:train_split_idx],   val,val_lab)
+            self._evaluate_smooth(train[train_split_idx:], train_lab[train_split_idx:], val,val_lab)
 
         # Save model
         if self.save is not None:
             pickle.dump(self, open(self.save+"model.pkl", "wb" ))
+
+        self.training_time = time() - train_time_begin
+
 
     def _mode(self, arr):
         mode = stats.mode(arr)[0][0]
@@ -350,7 +321,19 @@ def load_model(path_to_model, verbose=True):
 
     return model
 
-def train(chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, verbose):
+def cM2nsnp(cM, chm, chm_len_pos, genetic_map_file):
+    
+    gen_map_df = pd.read_csv(genetic_map_file, sep="\t", comment="#", header=None, dtype="str")
+    gen_map_df.columns = ["chm", "pos", "pos_cm"]
+    gen_map_df = gen_map_df.astype({'chm': str, 'pos': np.int64, 'pos_cm': np.float64})
+    gen_map_df = gen_map_df[gen_map_df.chm == chm]
+
+    chm_len_cM = np.array(gen_map_df["pos_cm"])[-1]
+    snp_len = int(round(cM*(chm_len_pos/chm_len_cM)))
+
+    return snp_len
+
+def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, smooth_size, missing, n_cores, verbose):
 
     if verbose:
         print("Preprocessing data...")
@@ -363,11 +346,19 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
 
     train1_paths = [data_path + "/chm" + chm + "/simulation_output/train1/gen_" + str(gen) + "/" for gen in generations]
     train2_paths = [data_path + "/chm" + chm + "/simulation_output/train2/gen_" + str(gen) + "/" for gen in generations]
-    val_paths    = [data_path + "/chm" + chm + "/simulation_output/val/gen_"   + str(gen) + "/" for gen in generations] # only validate on 4th gen
+    val_paths    = [data_path + "/chm" + chm + "/simulation_output/val/gen_"    + str(gen) + "/" for gen in generations]
 
     position_map_file   = data_path + "/chm"+ chm + "/positions.txt"
     reference_map_file  = data_path + "/chm"+ chm + "/references.txt"
     population_map_file = data_path + "/populations.txt"
+
+    snp_pos = np.loadtxt(position_map_file,  delimiter='\n').astype("int")
+    snp_ref = np.loadtxt(reference_map_file, delimiter='\n', dtype=str)
+    pop_order = np.genfromtxt(population_map_file, dtype="str")
+    chm_len = len(snp_pos)
+    num_anc = len(pop_order)
+
+    window_size_pos = cM2nsnp(cM=window_size_cM, chm=chm, chm_len_pos=chm_len, genetic_map_file=genetic_map_file)
     
     # ------------------ Process data ------------------
     # gather feature data files (binary representation of variants)
@@ -380,7 +371,7 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
     labels_fname = "mat_map.npy"
     labels_train1_files = [p + labels_fname for p in train1_paths]
     labels_train2_files = [p + labels_fname for p in train2_paths]
-    labels_val_files   = [p + labels_fname for p in val_paths]
+    labels_val_files    = [p + labels_fname for p in val_paths]
 
     # load the data
     train_val_files = [X_train1_files, labels_train1_files, X_train2_files, labels_train2_files, X_val_files, labels_val_files]
@@ -404,25 +395,19 @@ def train(chm, model_name, data_path, generations, window_size, smooth_size, mis
         # delete it
         del X_train1_raw_gen_0, y_train1_raw_gen_0, X_train2_raw_gen_0, y_train2_raw_gen_0 
 
-    # reshape according to window size
-    X_train1, labels_window_train1 = data_process(X_train1_raw, labels_train1_raw, window_size, missing)
-    X_train2, labels_window_train2 = data_process(X_train2_raw, labels_train2_raw, window_size, missing)
-    X_val, labels_window_val       = data_process(X_val_raw, labels_val_raw, window_size, missing)
+    # reshape according to window size 
+    X_train1, labels_window_train1 = data_process(X_train1_raw, labels_train1_raw, window_size_pos, missing)
+    X_train2, labels_window_train2 = data_process(X_train2_raw, labels_train2_raw, window_size_pos, missing)
+    X_val, labels_window_val       = data_process(X_val_raw, labels_val_raw, window_size_pos, missing)
 
-    # necessary arguments for model
-    snp_pos = np.loadtxt(position_map_file,  delimiter='\n').astype("int")
-    snp_ref = np.loadtxt(reference_map_file, delimiter='\n', dtype=str)
-    pop_order = np.genfromtxt(population_map_file, dtype="str")
-    chm_len = len(snp_pos)
-    num_anc = len(pop_order)
+    del X_train1_raw, X_train2_raw, X_val_raw, labels_train1_raw, labels_train2_raw, labels_val_raw
 
     # ------------------ Train model ------------------    
     # init, train, evaluate and save model
     if verbose:
         print("Initializing XGMix model and training...")
-    model = XGMIX(chm_len, window_size, smooth_size, num_anc, snp_pos, snp_ref, pop_order, cores=n_cores)
-    model.train(X_train1, labels_window_train1, X_train2, labels_window_train2, X_val, labels_window_val,
-                retrain_base=retrain_base, verbose=verbose)
+    model = XGMIX(chm_len, window_size_pos, smooth_size, num_anc, snp_pos, snp_ref, pop_order, calibrate=calibrate, cores=n_cores)
+    model.train(X_train1, labels_window_train1, X_train2, labels_window_train2, X_val, labels_window_val, retrain_base=retrain_base, verbose=verbose)
 
     # evaluate model
     analysis_path = join_paths(model_repo, "analysis", verb=False)
@@ -461,9 +446,9 @@ def main(args, verbose=True):
 
             # Splitting the data into train1 (base), train2 (smoother), val, test 
             if verbose:
-                print("Reading sample maps and splitting in train/val/test...")
+                print("Reading sample maps and splitting in train/val...")
             samples, pop_ids = read_sample_map(args.sample_map_file, population_path = data_path)
-            set_names = ["train1", "train2", "val", "test"]
+            set_names = ["train1", "train2", "val"]
             sample_map_path = join_paths(data_path, "sample_maps", verb=verbose)
             sample_map_paths = [sample_map_path+"/"+s+".map" for s in set_names]
             sample_map_idxs = split_sample_map(sample_ids = np.array(samples["Sample"]),
@@ -475,8 +460,9 @@ def main(args, verbose=True):
             # Simulating data
             if verbose:
                 print("Running simulation...")
+            num_outs_per_gen = [n//len(generations) for n in num_outs]
             main_admixture(args.chm, data_path, set_names, sample_map_paths, sample_map_idxs,
-                           args.reference_file, args.genetic_map_file, num_outs, generations)
+                           args.reference_file, args.genetic_map_file, num_outs_per_gen, generations)
 
             if verbose:
                 print("Simulation done.")
@@ -485,7 +471,8 @@ def main(args, verbose=True):
             print("Using simulated data from " + data_path + " ...")
 
         # Processing data, init and training model
-        model = train(args.chm, model_name, data_path, generations, window_size, smooth_size, missing, n_cores, verbose)
+        model = train(args.chm, model_name, args.genetic_map_file, data_path, generations,
+                        window_size_cM, smooth_size, missing, n_cores, verbose)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
@@ -493,8 +480,7 @@ def main(args, verbose=True):
         # Load and process user query file
         if verbose:
             print("Loading and processing query file...")
-        X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos,
-                                                                model.snp_ref, verbose=verbose)
+        X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, model.snp_ref, verbose=verbose)
 
         # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
         if verbose:
@@ -535,7 +521,7 @@ if __name__ == "__main__":
     # Usage message
     if mode is None:
         if len(sys.argv) > 1:
-            print("Error: Not correct number of arguments.")
+            print("Error: Incorrect number of arguments.")
         print("Usage when training a model from scratch:")
         print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <reference_file> <sample_map_file>")
         print("Usage when using a pre-trained model:")

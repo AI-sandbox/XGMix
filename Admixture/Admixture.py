@@ -75,8 +75,8 @@ def main_admixture(chm, root, sub_instance_names, sample_map_files, sample_map_f
 
     # Register and writing SNP physical positions
     ref = read_vcf(reference_file)
-    np.savetxt(output_path +  "/positions.txt",ref['variants/POS'], delimiter='\n')
-    np.savetxt(output_path + "/references.txt",ref['variants/REF'], delimiter='\n', fmt="%s")
+    np.savetxt(output_path +  "/positions.txt", ref['variants/POS'], delimiter='\n')
+    np.savetxt(output_path + "/references.txt", ref['variants/REF'], delimiter='\n', fmt="%s")
 
     # Convert to .bcf file format if not already there (format required by rfmix-simulate)
     reference_file_bcf = convert_to_bcf(reference_file, output_path=output_path)
