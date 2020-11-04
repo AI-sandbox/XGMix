@@ -39,12 +39,15 @@ class XGMIX():
 
     def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
                 base_params=[20,4],smooth_params=[100,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
-                mode_filter_size=5, calibrate=True):
+                mode_filter_size=5, calibrate=True,context_ratio=1.0):
 
         self.chmlen = chmlen
         self.win = win
         self.save = save
         self.sws = sws if sws %2 else sws-1
+        # TODO: make it a separate parameter in config.
+        self.context = int(self.win*context_ratio) # left and right are separate contexts.
+        
         self.num_anc = num_anc
         self.snp_pos = snp_pos
         self.snp_ref = snp_ref
@@ -78,16 +81,30 @@ class XGMIX():
     def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
+        
+        
+        # TODO 1: pad train with extra data.
+        
+        pad_left = np.flip(train[:,0:self.context],axis=1)
+        pad_right = np.flip(train[:,-self.context:],axis=1)
+        train = np.concatenate([pad_left,train,pad_right],axis=1)
+        
+        start = self.context
 
         for idx in range(self.num_windows):
 
             # a particular window across all examples
-            tt = train[:,idx*self.win:(idx+1)*self.win]
+            
+            tt = train[:,start-self.context:start+self.context+self.win]
+            
             ll_t = train_lab[:,idx]
 
             if idx == self.num_windows-1:
-                tt = train[:,idx*self.win:]
-
+                tt = train[:,start-self.context:]
+                
+            start += self.win
+            # TODO 2: pad train with left and right data.
+            # print(tt.shape)
             # fit model
             model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
                     learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
@@ -100,17 +117,27 @@ class XGMIX():
         print("")
 
     def _get_smooth_data(self, data=None, labels=None, base_out = None, return_base_out=False):
+        
+        # TODO 3: Make corresponding TODO 1, TODO 2 changes in this function
 
         if base_out is None:
             n_ind = data.shape[0]
 
             # get base output
             base_out = np.zeros((data.shape[0],len(self.base),self.num_anc),dtype="float32")
+            start = self.context
+            
+            pad_left = np.flip(data[:,0:self.context],axis=1)
+            pad_right = np.flip(data[:,-self.context:],axis=1)
+            data = np.concatenate([pad_left,data,pad_right],axis=1)
+            
             for i in range(len(self.base)):
-                inp = data[:,i*self.win:(i+1)*self.win]
+                inp = data[:,start-self.context:start+self.context+self.win]
                 if i == len(self.base)-1:
-                    inp = data[:,i*self.win:]
+                    inp = data[:,start-self.context:]
+                start += self.win
                 base_model = self.base["model"+str(i*self.win)]
+                # print(inp.shape)
                 base_out[:,i,base_model.classes_] = base_model.predict_proba(inp)
     
             if return_base_out:
@@ -148,22 +175,36 @@ class XGMIX():
         self.smooth.fit(tt,ttl)
 
     def _evaluate_base(self,train,train_lab,val,val_lab,verbose=True):
+        
+        # TODO 4: Make the changes corressponding to TODO 1, TODO 2 here as well.
 
         train_accr, val_accr = [], []
+        
+        start = self.context
 
+        pad_left = np.flip(train[:,0:self.context],axis=1)
+        pad_right = np.flip(train[:,-self.context:],axis=1)
+        train = np.concatenate([pad_left,train,pad_right],axis=1)
+        
+        pad_left = np.flip(val[:,0:self.context],axis=1)
+        pad_right = np.flip(val[:,-self.context:],axis=1)
+        val = np.concatenate([pad_left,val,pad_right],axis=1)
+        
         for idx in range(self.num_windows):
 
             model = self.base["model"+str(idx*self.win)]
 
             # a particular window across all examples
-            tt = train[:,idx*self.win:(idx+1)*self.win]
-            vt = val[:,idx*self.win:(idx+1)*self.win]
+            tt = train[:,start-self.context:start+self.context+self.win]
+            vt = val[:,start-self.context:start+self.context+self.win]
             ll_t = train_lab[:,idx]
             ll_v = val_lab[:,idx]
 
             if idx == self.num_windows-1:
-                tt = train[:,idx*self.win:]
-                vt = val[:,idx*self.win:]
+                tt = train[:,start-self.context:]
+                vt = val[:,start-self.context:]
+                
+            start += self.win
             
             y_pred = model.predict(tt)
             train_metric = accuracy_score(y_pred,ll_t)
