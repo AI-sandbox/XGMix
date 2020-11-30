@@ -11,13 +11,15 @@ import sys
 from time import time
 import xgboost as xgb
 
-from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
-from Admixture.utils import read_vcf, join_paths, run_shell_cmd
-
-from preprocess import load_np_data, data_process, vcf2npy, map2npy, get_gen_0
-from postprocess import vcf_to_npy, get_msp_data, write_msp_tsv
+from utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy
+from preprocess import load_np_data, data_process, get_gen_0
+from postprocess import get_msp_data, write_msp_tsv
 from visualization import plot_cm
 from Calibration import calibrator_module, normalize_prob
+
+from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
+
+from XGFix.XGFIX import XGFix
 
 from config import verbose, instance_name, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
 from config import model_name, window_size_cM, smooth_size, missing, retrain_base, calibrate, n_cores
@@ -257,7 +259,10 @@ class XGMIX():
         
         return pred_out
 
-    def predict(self,tt,rtn_calibrated=None):
+    def predict(self,tt,rtn_calibrated=None,phase=False):
+        if phase:
+            X_phased, y_phased = self.phase(tt, calibrate=rtn_calibrated)
+            return y_phased
         if rtn_calibrated is None:
             rtn_calibrated = self.calibrate
         if rtn_calibrated:
@@ -293,6 +298,27 @@ class XGMIX():
                 print("No calibrator found, returning uncalibrated probabilities")
 
         return proba
+
+    def phase(self,X,verbose=False):
+        """
+        Wrapper for XGFix
+        """
+        n_haplo, n_snp = X.shape
+        n_ind = n_haplo//2
+        X_phased = np.zeros((n_ind,2,n_snp))
+        Y_phased = np.zeros((n_ind,2,self.num_windows))
+
+        for i, X_i in enumerate(X.reshape(n_ind,2,n_snp)):
+            sys.stdout.write("\rPhasing individual %i/%i" % (i+1, n_ind))
+            X_m, X_p = X_i
+            X_m, X_p, Y_m, Y_p, history, XGFix_tracker = XGFix(X_m, X_p, self, verbose=verbose)
+            X_phased[i] = np.copy(np.array((X_m,X_p)))
+            Y_phased[i] = np.copy(np.array((Y_m,Y_p)))
+
+        print()
+        
+        return X_phased.reshape(n_haplo, n_snp), Y_phased.reshape(n_haplo, self.num_windows)
+
 
 class Struct:
     def __init__(self, **entries):
@@ -476,23 +502,29 @@ def main(args, verbose=True):
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
+    # Predict the query data
     if args.query_file is not None:
-        # Load and process user query file
+        # Load and process user query vcf file
         if verbose:
             print("Loading and processing query file...")
-        X_query, query_pos, model_idx, query_samples = vcf_to_npy(args.query_file, args.chm, model.snp_pos, model.snp_ref, verbose=verbose)
+        query_vcf_data = read_vcf(args.query_file, chm=args.chm)
+        X_query = vcf_to_npy(query_vcf_data, model.snp_pos, model.snp_ref, verbose=verbose)
 
         # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
         if verbose:
-            print("Analyzing...")
-        label_pred_query_window = model.predict(X_query)
+            print("Inferring ancestry on query data...")
+        if args.phase:
+            X_query_phased, label_pred_query_window = model.phase(X_query)
+        else: 
+            label_pred_query_window = model.predict(X_query)
 
         # writing the result to disc
         if verbose:
-            print("Writing analysis to disc...")
-        msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos, query_pos,
-                                model.num_windows, model.win, args.genetic_map_file)
-        write_msp_tsv(args.output_basename, msp_data, model.population_order, query_samples)
+            print("Writing inference to disc...")
+        msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos,
+                                query_vcf_data['variants/POS'], model.num_windows,
+                                model.win, args.genetic_map_file)
+        write_msp_tsv(args.output_basename, msp_data, model.population_order, query_vcf_data['samples'])
 
     if mode=="train" and rm_simulated_data:
         if verbose:
@@ -513,9 +545,9 @@ if __name__ == "__main__":
 
     # Infer mode from number of arguments
     mode = None
-    if len(sys.argv) == 6:
-        mode = "pre-trained" 
     if len(sys.argv) == 7:
+        mode = "pre-trained" 
+    if len(sys.argv) == 8:
         mode = "train"
 
     # Usage message
@@ -523,9 +555,9 @@ if __name__ == "__main__":
         if len(sys.argv) > 1:
             print("Error: Incorrect number of arguments.")
         print("Usage when training a model from scratch:")
-        print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <reference_file> <sample_map_file>")
+        print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <phase> <reference_file> <sample_map_file>")
         print("Usage when using a pre-trained model:")
-        print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <path_to_model>")
+        print("   $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <phase> <path_to_model>")
         sys.exit(0)
 
     # Deconstruct CL arguments
@@ -534,14 +566,15 @@ if __name__ == "__main__":
         'query_file': sys.argv[1] if sys.argv[1].strip() != "None" else None,
         'genetic_map_file': sys.argv[2],
         'output_basename': sys.argv[3],
-        'chm': sys.argv[4]
+        'chm': sys.argv[4],
+        'phase': True if sys.argv[5].lower() == "true" else False
     }
     args = Struct(**base_args)
     if mode == "train":
-        args.reference_file  = sys.argv[5]
-        args.sample_map_file = sys.argv[6]
+        args.reference_file  = sys.argv[6]
+        args.sample_map_file = sys.argv[7]
     elif mode == "pre-trained":
-        args.path_to_model = sys.argv[5]
+        args.path_to_model = sys.argv[6]
 
     # Run it
     if verbose:

@@ -8,16 +8,6 @@ from scipy import stats
 Pre-processing pipeline.
 Functions to load data, generate labels based on window size.
 """
-
-def read_txt(data):
-
-    files = []
-    with open(data,"r") as f:
-        for i in f.readlines():
-            files.append(i.strip("\n"))
-
-    return files
-
 def load_np_data(files, verb=False):
 
     data = []
@@ -59,7 +49,6 @@ def get_gen_0(data_path, population_map_file, sets):
         out.append(y_raw_gen_0)
     
     return out
-
 
 def window_reshape(data, win_size):
     """
