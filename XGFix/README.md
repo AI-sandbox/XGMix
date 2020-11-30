@@ -1,3 +1,1 @@
-# XGFix
-
-![Visualization of the process](XGFix.gif)
+# XGFix ![Visualization of the process](XGFix.gif)
