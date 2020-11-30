@@ -171,4 +171,71 @@ def get_lat_lon(sample_data, pop_ids):
                 break
     return lat_lon
 
+# -------------- more sample map tils --------------
 
+def filter_map(old_map, subset, out_loc):
+    
+    """
+
+    To filter a sample map based into a subset of populations.
+    Helpful in a research workflow
+
+    inputs:
+    old_map: sample map
+    subset: what poulations to keep
+    out_loc: where to store it
+    
+    returns:
+    list of lists - inner list -> [sample_name, population]: filtered sample map elements
+    
+    writes:
+    filtered sample map into out_loc
+    """
+    
+    subset_split = []
+    with open(old_map, "r") as f:
+        for i in f.readlines():
+            sam_anc = i.rstrip("\n").split("\t")
+            if sam_anc[1] in subset:
+                subset_split.append(sam_anc)
+
+    with open(out_loc, "w") as f:
+        for ss in subset_split:
+            f.write("{}\t{}\n".format(*ss))
+            
+    return subset_split
+
+def convert_map(old_map, convert_dict, out_loc):
+    
+    """
+
+    To convert specific populations names in a sample map to another.
+    Use cases: while clubbing populations, renaming them, etc...
+    eg: convert STU, ITU, etc... to SAS.
+    convert_dict for the above would be {"STU":"SAS","ITU":"SAS"}
+
+    Helpful in a research workflow
+
+    inputs:
+    old_map: sample map
+    convert_dict: renaming populations (use case: while clubbing populations, renaming them, etc...)
+    out_loc: where to store it
+    
+    returns:
+    list of lists - inner list -> [sample_name, population]: renamed sample map elements.
+    
+    writes:
+    filtered sample map into out_loc
+    """
+    
+    subset_split = []
+    with open(old_map, "r") as f:
+        for i in f.readlines():
+            sam_anc = i.rstrip("\n").split("\t")
+            subset_split.append([sam_anc[0],convert_dict[sam_anc[1]]])
+
+    with open(out_loc, "w") as f:
+        for ss in subset_split:
+            f.write("{}\t{}\n".format(*ss))
+            
+    return subset_split

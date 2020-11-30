@@ -440,6 +440,16 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     CM(labels_window_val.ravel(), model.predict(X_val).ravel(), pop_order, analysis_path, verbose)
     pickle.dump(model, open(model_path,"wb"))
 
+
+    # write the model parameters of type int, float, str into a file config.
+    # so there is more clarity on what the model parameters were.
+    # NOTE: Not tested fully yet. # TODO
+    with open(os.path.join(model_repo,"config.txt"),"w") as f:
+        for attr in dir(model):
+            val = getattr(model,attr)
+            if type(val) in [int,float,str] :
+                f.write("{}\t{}\n".format(attr,val))
+
     return model
 
 def CM(y, y_pred, labels, save_path=None, verbose=True):
