@@ -23,14 +23,15 @@ XGMIX.py loads and uses pre-trained XGMix models to predict the ancestry for a g
 
 To execute the program with a pre-trained model run:
 ```
-$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <path_to_model> 
+$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <phase> <path_to_model> 
 ```
 
 where 
-- *<query_file>* is a .vcf or .vcf.gz file containing the query haplotypes which are to be analyzed (see example in the **/demo_data** folder)
-- *<genetic_map_file>* is the genetic map file (see example in the **/demo_data** folder)
-- *<output_basename>*.msp.tsv. is where the predictions are written (see details in **Output** below and an example in the **/demo_data** folder)
+- *<query_file>* is a .vcf or .vcf.gz file containing the query haplotypes which are to be analyzed (see example in the **demo_data/** folder)
+- *<genetic_map_file>* is the genetic map file (see example in the **demo_data/** folder)
+- *<output_basename>*.msp.tsv. is where the predictions are written (see details in **Output** below and an example in the **demo_data/** folder)
 - *<chr_nr>* is the chromosome number
+- *<phase> is either True or False corresponding to the intent of using the predicted ancestry for phasing (see details in **Phasing** below and in the **XGFix/** folder)
 - *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
 
 ### When Training a Model From Scratch
@@ -38,10 +39,10 @@ XGMix.py loads data from the *<reference_file>*
 
 To execute the program when training a model run:
 ```
-$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <reference_file> <sample_map_file>
+$ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <phase> <reference_file> <sample_map_file>
 ```
 
-where the first 4 arguments are described above in the pre-trained setting and 
+where the first 5 arguments are described above in the pre-trained setting and 
 - *<reference_file>* is a .vcf or .vcf.gz file containing the reference haplotypes (in any order)
 - *<sample_map_file>* is a sample map file matching reference samples to their respective reference populations
 
@@ -79,7 +80,7 @@ In those cases, not removing the data and then setting *run_simulation* to False
 
 ## Pre-Trained Models
 
-Pre-trained models are available for download from [XGMix-models](https://github.com/AI-sandbox/XGMix-models).
+Pre-trained models will soon be available for download from [XGMix-models](https://github.com/AI-sandbox/XGMix-models).
 
 When making predictions, the input to the model is an intersection of the pre-trained model SNP positions and the SNP positions from the <query_file>. That means that the set of positions that's only in the original training input is encoded as missing and the set of positions only in the <query_file> is discarded. When the script is executed, it will log the intersection-ratio as the performance will depend on how much of the original positions are missing. When the intersection is low, we recommend using a model trained with high percentage of missing data.
 
