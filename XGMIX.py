@@ -21,8 +21,9 @@ from Admixture.Admixture import read_sample_map, split_sample_map, main_admixtur
 
 from XGFix.XGFIX import XGFix
 
-from config import verbose, instance_name, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
-from config import model_name, window_size_cM, smooth_size, missing, retrain_base, calibrate, n_cores, context_ratio
+from config import verbose, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
+from config import model_name, window_size_cM, smooth_size, missing
+from config import retrain_base, calibrate, n_cores, context_ratio, instance_name, mode_filter_size, smooth_depth
 
 CLAIMER = 'When using this software, please cite: \n' + \
           'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
@@ -64,7 +65,9 @@ def load_model(path_to_model, verbose=True):
 
     return model
 
-def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, smooth_size, missing, n_cores, verbose):
+def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, 
+          smooth_size, missing, n_cores, verbose, instance_name, 
+          retrain_base, calibrate, n_cores, context_ratio, mode_filter_size, smooth_depth):
 
     if verbose:
         print("Preprocessing data...")
@@ -137,7 +140,11 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     # init, train, evaluate and save model
     if verbose:
         print("Initializing XGMix model and training...")
-    model = XGMIX(chm_len, window_size_pos, smooth_size, num_anc, snp_pos, snp_ref, pop_order, calibrate=calibrate, cores=n_cores, context_ratio=context_ratio)
+    model = XGMIX(chm_len, window_size_pos, smooth_size, num_anc, 
+                  snp_pos, snp_ref, pop_order, calibrate=calibrate, 
+                  cores=n_cores, context_ratio=context_ratio,
+                  mode_filter_size=mode_filter_size, 
+                  base_params = [20,4], smooth_params=[100,smooth_depth])
     # other params: mode_filter_size
     model.train(X_train1, labels_window_train1, X_train2, labels_window_train2, X_val, labels_window_val, retrain_base=retrain_base, verbose=verbose)
 
@@ -202,7 +209,9 @@ def main(args, verbose=True):
 
         # Processing data, init and training model
         model = train(args.chm, model_name, args.genetic_map_file, data_path, generations,
-                        window_size_cM, smooth_size, missing, n_cores, verbose)
+                        window_size_cM, smooth_size, missing, n_cores, verbose,
+                        instance_name, retrain_base, calibrate, n_cores, context_ratio,
+                        mode_filter_size, smooth_depth)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
