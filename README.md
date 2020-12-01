@@ -31,7 +31,7 @@ where
 - *<genetic_map_file>* is the genetic map file (see example in the **demo_data/** folder)
 - *<output_basename>*.msp.tsv. is where the predictions are written (see details in **Output** below and an example in the **demo_data/** folder)
 - *<chr_nr>* is the chromosome number
-- *<phase> is either True or False corresponding to the intent of using the predicted ancestry for phasing (see details in **Phasing** below and in the **XGFix/** folder)
+- *<phase>* is either True or False corresponding to the intent of using the predicted ancestry for phasing (see details in **Phasing** below and in the **XGFix/** folder)
 - *<path_to_model>* is a path to the model used for predictions (see **Pre-trained Models** below)
 
 ### When Training a Model From Scratch
@@ -85,6 +85,19 @@ Pre-trained models will soon be available for download from [XGMix-models](https
 When making predictions, the input to the model is an intersection of the pre-trained model SNP positions and the SNP positions from the <query_file>. That means that the set of positions that's only in the original training input is encoded as missing and the set of positions only in the <query_file> is discarded. When the script is executed, it will log the intersection-ratio as the performance will depend on how much of the original positions are missing. When the intersection is low, we recommend using a model trained with high percentage of missing data.
 
 The models are trained on hg build 37 references from the following biogeographic regions: *Subsaharan African (AFR), African Hunter and Gatherer (AHG), East Asian (EAS), European (EUR), Native American (NAT), Oceanian (OCE), South Asian (SAS), and West Asian (WAS)* and labels and predicts them as 0, 1, .., 7 respectively.
+
+## Phasing
+
+
+![Visualization of the process](XGFix/figures/XGFix.gif)
+
+
+Accurate phasing of genomic data is crucial for human demographic modeling and identity-by-descent analyses. It has been shown that leveraging information about an individual’s genomic ancestry improves performance of current phasing algorithms. XGFix is a method that uses local Ancestry Inference (LAI) to do exactly that. See the **XGFix/** folder for more details. 
+
+![Local Ancestry for Phasing Error Correction](XGFix/figures/laipec_resized.png)
+Sequenced haplotypes phased with a phasing software (left). LAI used to label haplotypes with ancestry predictions and phasing errors become evident (center). Phasing error correction using LAI is applied to correct phasing errors (right).
+
+
 
 ## Cite
 
