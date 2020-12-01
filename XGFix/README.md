@@ -5,7 +5,7 @@
 Accurate phasing of genomic data is crucial for human demographic modeling and identity-by-descent analyses. It has been shown that leveraging information about an individual’s genomic ancestry improves performance of current phasing algorithms. XGFix is a method that uses local ancestry inference (LAI) that does exactly that.
 
 ![Local Ancestry for Phasing Error Correction](figures/laipec_resized.png)
-Sequenced haplotypes phased with a phasing software (left). LAI used to label haplotypes with ancestry predictions and phasing errors become evident (center). LAI-PEC  is applied to correct phasing errors (right).
+Sequenced haplotypes phased with a phasing software (left). LAI used to label haplotypes with ancestry predictions and phasing errors become evident (center). Phasing error correction using LAI is applied to correct phasing errors (right).
 
 ## Method
 
