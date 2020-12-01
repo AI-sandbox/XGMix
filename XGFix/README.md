@@ -24,6 +24,10 @@ right part switches too), before moving the scope one window  to the right for n
 
 ## Result
 
-Below is a visualization of the process for one - in this case the first - iteration of the algorithm applied on real data. The two haplotypes are from a simulated Latino individual with the red color corresponding to African segment, blue to the European segment and green to the Native American segment. 
+Below is a visualization of the process for one - in this case the first - iteration of the algorithm applied on real data. The two haplotypes are from a simulated Latino individual with the red color corresponding to African segment, blue to the European segment and green to the Native American segment.
+
+
 ![Visualization of the process](figures/XGFix.gif)
+
+
 It starts off with the maternal and paternal haplotypes phased from Beagle, a standard phasing softwere. The ancestry is inferred by XGMix and phasing errors become evident as ancestries switch haplotype at exactly the same position repeatedly. At each step it performs the procedure described above. Once the iteration is over, we see how the ancestry predictions are almost uniform and resemble a chromosome pair with (realistically) long segments inherited from the 3 different ancestries.
