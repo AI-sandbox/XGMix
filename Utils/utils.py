@@ -153,3 +153,15 @@ def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, verbos
 
     # return npy matrix
     return mat_vcf_2d
+
+def cM2nsnp(cM, chm, chm_len_pos, genetic_map_file):
+    
+    gen_map_df = pd.read_csv(genetic_map_file, sep="\t", comment="#", header=None, dtype="str")
+    gen_map_df.columns = ["chm", "pos", "pos_cm"]
+    gen_map_df = gen_map_df.astype({'chm': str, 'pos': np.int64, 'pos_cm': np.float64})
+    gen_map_df = gen_map_df[gen_map_df.chm == chm]
+
+    chm_len_cM = np.array(gen_map_df["pos_cm"])[-1]
+    snp_len = int(round(cM*(chm_len_pos/chm_len_cM)))
+
+    return snp_len

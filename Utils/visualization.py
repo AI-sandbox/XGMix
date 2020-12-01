@@ -3,6 +3,22 @@ import numpy as np
 import os
 import pandas as pd
 import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+def CM(y, y_pred, labels, save_path=None, verbose=True):
+    cm = confusion_matrix(y, y_pred)
+    if verbose:
+        print("Confusion matrix for validation data:")
+        print(cm)
+    if save_path is not None:
+        n_digits = int(np.ceil(np.log10(np.max(cm))))
+        str_fmt = '%-'+str(n_digits)+'.0f'
+        np.savetxt(save_path+"/confusion_matrix.txt", cm, fmt=str_fmt)
+        cm_figure = plot_cm(cm, normalize=True, labels=labels)
+        cm_figure.figure.savefig(save_path+"/confusion_matrix_normalized.png")
+        if verbose:
+            print("Confusion matrix saved in", save_path)
+    return cm
 
 def plot_cm(cm, normalize=True, labels=None, figsize=(12,10)):
     plt.figure(figsize=figsize)

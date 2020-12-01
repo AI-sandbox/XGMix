@@ -11,11 +11,11 @@ import sys
 from time import time
 import xgboost as xgb
 
-from utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy
-from preprocess import load_np_data, data_process, get_gen_0
-from postprocess import get_msp_data, write_msp_tsv
-from visualization import plot_cm
-from Calibration import calibrator_module, normalize_prob
+from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, cM2nsnp
+from Utils.preprocess import load_np_data, data_process, get_gen_0
+from Utils.postprocess import get_msp_data, write_msp_tsv
+from Utils.visualization import plot_cm, CM
+from Utils.Calibration import calibrator_module, normalize_prob
 
 from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
 
@@ -401,18 +401,6 @@ def load_model(path_to_model, verbose=True):
 
     return model
 
-def cM2nsnp(cM, chm, chm_len_pos, genetic_map_file):
-    
-    gen_map_df = pd.read_csv(genetic_map_file, sep="\t", comment="#", header=None, dtype="str")
-    gen_map_df.columns = ["chm", "pos", "pos_cm"]
-    gen_map_df = gen_map_df.astype({'chm': str, 'pos': np.int64, 'pos_cm': np.float64})
-    gen_map_df = gen_map_df[gen_map_df.chm == chm]
-
-    chm_len_cM = np.array(gen_map_df["pos_cm"])[-1]
-    snp_len = int(round(cM*(chm_len_pos/chm_len_cM)))
-
-    return snp_len
-
 def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, smooth_size, missing, n_cores, verbose):
 
     if verbose:
@@ -503,21 +491,6 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     model.write_config(model_config_path)
 
     return model
-
-def CM(y, y_pred, labels, save_path=None, verbose=True):
-    cm = confusion_matrix(y, y_pred)
-    if verbose:
-        print("Confusion matrix for validation data:")
-        print(cm)
-    if save_path is not None:
-        n_digits = int(np.ceil(np.log10(np.max(cm))))
-        str_fmt = '%-'+str(n_digits)+'.0f'
-        np.savetxt(save_path+"/confusion_matrix.txt", cm, fmt=str_fmt)
-        cm_figure = plot_cm(cm, normalize=True, labels=labels)
-        cm_figure.figure.savefig(save_path+"/confusion_matrix_normalized.png")
-        if verbose:
-            print("Confusion matrix saved in", save_path)
-    return cm
 
 def main(args, verbose=True):
 
