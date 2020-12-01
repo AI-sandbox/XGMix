@@ -1,5 +1,7 @@
 # XGFix 
 
+![Visualization of the process](figures/XGFix.gif)
+
 ## Motivation
 
 Accurate phasing of genomic data is crucial for human demographic modeling and identity-by-descent analyses. It has been shown that leveraging information about an individual’s genomic ancestry improves performance of current phasing algorithms. XGFix is a method that uses local Ancestry Inference (LAI) that does exactly that.
