@@ -340,6 +340,13 @@ class XGMIX():
 
         return proba
 
+    def write_config(self,fname):
+        with open(fname,"w") as f:
+            for attr in dir(self):
+                val = getattr(self,attr)
+                if type(val) in [int,float,str] :
+                    f.write("{}\t{}\n".format(attr,val))
+
     def phase(self,X,verbose=False):
         """
         Wrapper for XGFix
@@ -485,11 +492,8 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     # write the model parameters of type int, float, str into a file config.
     # so there is more clarity on what the model parameters were.
     # NOTE: Not tested fully yet. # TODO
-    with open(os.path.join(model_repo,"config.txt"),"w") as f:
-        for attr in dir(model):
-            val = getattr(model,attr)
-            if type(val) in [int,float,str] :
-                f.write("{}\t{}\n".format(attr,val))
+    model_config_path = os.path.join(model_repo,"config.txt")
+    model.write_config(model_config_path)
 
     return model
 
