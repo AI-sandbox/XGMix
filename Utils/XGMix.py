@@ -65,13 +65,18 @@ class XGMIX():
     def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
+
+        print(self.win, self.context)
         
         
         # TODO 1: pad train with extra data.
         
-        pad_left = np.flip(train[:,0:self.context],axis=1)
-        pad_right = np.flip(train[:,-self.context:],axis=1)
-        train = np.concatenate([pad_left,train,pad_right],axis=1)
+        if self.context != 0.0:
+            pad_left = np.flip(train[:,0:self.context],axis=1)
+            pad_right = np.flip(train[:,-self.context:],axis=1)
+            train = np.concatenate([pad_left,train,pad_right],axis=1)
+
+        print(train.shape)
         
         start = self.context
 
@@ -93,6 +98,7 @@ class XGMIX():
             model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
                     learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
                     nthread=self.cores, missing=self.missing, random_state=1) 
+            print(tt.shape, ll_t.shape)
             model.fit(tt,ll_t)
             self.base["model"+str(idx*self.win)] = model
 
@@ -111,9 +117,10 @@ class XGMIX():
             base_out = np.zeros((data.shape[0],len(self.base),self.num_anc),dtype="float32")
             start = self.context
             
-            pad_left = np.flip(data[:,0:self.context],axis=1)
-            pad_right = np.flip(data[:,-self.context:],axis=1)
-            data = np.concatenate([pad_left,data,pad_right],axis=1)
+            if self.context != 0.0:
+                pad_left = np.flip(data[:,0:self.context],axis=1)
+                pad_right = np.flip(data[:,-self.context:],axis=1)
+                data = np.concatenate([pad_left,data,pad_right],axis=1)
             
             for i in range(len(self.base)):
                 inp = data[:,start-self.context:start+self.context+self.win]
@@ -166,13 +173,14 @@ class XGMIX():
         
         start = self.context
 
-        pad_left = np.flip(train[:,0:self.context],axis=1)
-        pad_right = np.flip(train[:,-self.context:],axis=1)
-        train = np.concatenate([pad_left,train,pad_right],axis=1)
-        
-        pad_left = np.flip(val[:,0:self.context],axis=1)
-        pad_right = np.flip(val[:,-self.context:],axis=1)
-        val = np.concatenate([pad_left,val,pad_right],axis=1)
+        if self.context != 0.0:
+            pad_left = np.flip(train[:,0:self.context],axis=1)
+            pad_right = np.flip(train[:,-self.context:],axis=1)
+            train = np.concatenate([pad_left,train,pad_right],axis=1)
+            
+            pad_left = np.flip(val[:,0:self.context],axis=1)
+            pad_right = np.flip(val[:,-self.context:],axis=1)
+            val = np.concatenate([pad_left,val,pad_right],axis=1)
         
         for idx in range(self.num_windows):
 
