@@ -67,7 +67,7 @@ def load_model(path_to_model, verbose=True):
 
 def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, 
           smooth_size, missing, n_cores, verbose, instance_name, 
-          retrain_base, calibrate, context_ratio, mode_filter_size, smooth_depth):
+          retrain_base, calibrate, context_ratio, mode_filter_size, smooth_depth, gen_0=True):
 
     if verbose:
         print("Preprocessing data...")
@@ -162,8 +162,27 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
 
     return model
 
-def main(args, verbose=True):
+def main(args, verbose=True, **kwargs):
 
+    run_simulation=kwargs["run_simulation"]
+    founders_ratios=kwargs["founders_ratios"]
+    num_outs=kwargs["num_outs"]
+    generations=kwargs["generations"]
+    rm_simulated_data=kwargs["rm_simulated_data"]
+    model_name=kwargs["model_name"]
+    window_size_cM=kwargs["window_size_cM"]
+    smooth_size=kwargs["smooth_size"]
+    missing=kwargs["missing"]
+    n_cores=kwargs["n_cores"]
+    retrain_base=kwargs["retrain_base"]
+    calibrate=kwargs["calibrate"]
+    context_ratio=kwargs["context_ratio"]
+    instance_name=kwargs["instance_name"]
+    mode_filter_size=kwargs["mode_filter_size"]
+    smooth_depth=kwargs["smooth_depth"]
+
+
+    mode = args.mode # this needs to be done. master change 1.
     # The simulation can't handle generation 0, add it separetly
     gen_0 = 0 in generations
     generations = list(filter(lambda x: x != 0, generations))
@@ -175,8 +194,8 @@ def main(args, verbose=True):
         model = load_model(args.path_to_model, verbose=verbose)
     elif args.mode == "train":
 
-        # Set output path
-        data_path = join_paths('./'+instance_name, 'generated_data', verb=False)
+        # Set output path: master change 2
+        data_path = join_paths(args.output_basename+instance_name, 'generated_data', verb=False)
 
         # Running simulation. If data is already simulated, skipping can save a lot of time
         if run_simulation:
@@ -211,7 +230,7 @@ def main(args, verbose=True):
         model = train(args.chm, model_name, args.genetic_map_file, data_path, generations,
                         window_size_cM, smooth_size, missing, n_cores, verbose,
                         instance_name, retrain_base, calibrate, context_ratio,
-                        mode_filter_size, smooth_depth)
+                        mode_filter_size, smooth_depth, gen_0)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
