@@ -66,19 +66,11 @@ class XGMIX():
     def _train_base(self,train,train_lab,evaluate=True):
 
         self.base = {}
-
-        print(self.win, self.context)
-        
-        
-        # TODO 1: pad train with extra data.
-        
         if self.context != 0.0:
             pad_left = np.flip(train[:,0:self.context],axis=1)
             pad_right = np.flip(train[:,-self.context:],axis=1)
             train = np.concatenate([pad_left,train,pad_right],axis=1)
 
-        print(train.shape)
-        
         start = self.context
 
         for idx in range(self.num_windows):
@@ -93,13 +85,11 @@ class XGMIX():
                 tt = train[:,start-self.context:]
                 
             start += self.win
-            # TODO 2: pad train with left and right data.
-            # print(tt.shape)
             # fit model
             model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
                     learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
                     nthread=self.cores, missing=self.missing, random_state=1) 
-            print(tt.shape, ll_t.shape)
+            #print(tt.shape, ll_t.shape)
             model.fit(tt,ll_t)
             self.base["model"+str(idx*self.win)] = model
 
@@ -109,8 +99,6 @@ class XGMIX():
 
     def _get_smooth_data(self, data=None, labels=None, base_out = None, return_base_out=False):
         
-        # TODO 3: Make corresponding TODO 1, TODO 2 changes in this function
-
         if base_out is None:
             n_ind = data.shape[0]
 
@@ -168,8 +156,6 @@ class XGMIX():
 
     def _evaluate_base(self,train,train_lab,val,val_lab,verbose=True):
         
-        # TODO 4: Make the changes corressponding to TODO 1, TODO 2 here as well.
-
         train_accr, val_accr = [], []
         
         start = self.context

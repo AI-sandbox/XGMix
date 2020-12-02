@@ -67,14 +67,15 @@ def load_model(path_to_model, verbose=True):
 
 def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, 
           smooth_size, missing, n_cores, verbose, instance_name, 
-          retrain_base, calibrate, context_ratio, mode_filter_size, smooth_depth, gen_0=True):
+          retrain_base, calibrate, context_ratio, mode_filter_size, smooth_depth, gen_0,
+          output_basename):
 
     if verbose:
         print("Preprocessing data...")
     
     # ------------------ Config ------------------
     model_name += "_chm_" + chm
-    model_repo = join_paths("./"+instance_name, "models", verb=False)
+    model_repo = join_paths(output_basename+"./"+instance_name, "models", verb=False)
     model_repo = join_paths(model_repo, model_name, verb=False)
     model_path = model_repo + "/" + model_name + ".pkl"
 
@@ -151,6 +152,7 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     # evaluate model
     analysis_path = join_paths(model_repo, "analysis", verb=False)
     CM(labels_window_val.ravel(), model.predict(X_val).ravel(), pop_order, analysis_path, verbose)
+    print("Saving model at {}".format(model_path))
     pickle.dump(model, open(model_path,"wb"))
 
 
@@ -158,6 +160,7 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     # so there is more clarity on what the model parameters were.
     # NOTE: Not tested fully yet. # TODO
     model_config_path = os.path.join(model_repo,"config.txt")
+    print("Saving model info at {}".format(model_config_path))
     model.write_config(model_config_path)
 
     return model
@@ -230,7 +233,7 @@ def main(args, verbose=True, **kwargs):
         model = train(args.chm, model_name, args.genetic_map_file, data_path, generations,
                         window_size_cM, smooth_size, missing, n_cores, verbose,
                         instance_name, retrain_base, calibrate, context_ratio,
-                        mode_filter_size, smooth_depth, gen_0)
+                        mode_filter_size, smooth_depth, gen_0, args.output_basename)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
