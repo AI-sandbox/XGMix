@@ -75,7 +75,7 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     
     # ------------------ Config ------------------
     model_name += "_chm_" + chm
-    model_repo = join_paths(output_basename+"./"+instance_name, "models", verb=False)
+    model_repo = join_paths(output_basename+"/"+instance_name, "models", verb=False)
     model_repo = join_paths(model_repo, model_name, verb=False)
     model_path = model_repo + "/" + model_name + ".pkl"
 
