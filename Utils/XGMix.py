@@ -18,6 +18,7 @@ from Utils.visualization import plot_cm, CM
 from Utils.Calibration import calibrator_module, normalize_prob
 from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
 
+from XGFix.XGFIX import XGFix
 
 class XGMIX():
 
