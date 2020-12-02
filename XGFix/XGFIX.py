@@ -9,7 +9,7 @@ from time import time
 from XGFix.phasing import *
 from XGFix.simple_switch import simple_switch
 
-from Calibration import calibrator_module, normalize_prob
+from XGFix.Calibration import calibrator_module, normalize_prob
 
 def mask_base_out(base_out, d=0):
     """

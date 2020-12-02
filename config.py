@@ -3,7 +3,7 @@ verbose = True     # logging
 instance_name = "" # can be used for organizing simulation output and models
 
 # Simulatiation configuration
-run_simulation = False     # if you already simulated data, setting False will re-use the data
+run_simulation = True    # if you already simulated data, setting False will re-use the data
 founders_ratios = [0.8, 0.15, 0.05]
 num_outs = [900, 180, 90] # how many individuals to simulate in each set
 generations = [0, 2, 4, 6, 8, 12, 16, 24, 32, 48] # generations to generate during simulation

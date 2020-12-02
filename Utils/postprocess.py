@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 import sys
 
-from utils import read_vcf
+from Utils.utils import read_vcf
 
 def get_effective_pred(prediction, chm_len, window_size, model_idx):
     """

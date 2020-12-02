@@ -16,7 +16,6 @@ from Utils.preprocess import load_np_data, data_process, get_gen_0
 from Utils.postprocess import get_msp_data, write_msp_tsv
 from Utils.visualization import plot_cm, CM
 from Utils.Calibration import calibrator_module, normalize_prob
-from Utils.XGMix import XGMIX
 from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
 
 
@@ -205,7 +204,7 @@ class XGMIX():
             print("Base Training Accuracy:   {}%".format(self.base_acc_train))
             print("Base Validation Accuracy: {}%".format(self.base_acc_val))
 
-    def _evaluate_smooth(self,train,train_lab,val,val_lab,verbose=verbose):
+    def _evaluate_smooth(self,train,train_lab,val,val_lab,verbose=True):
 
         t_pred = self.predict(train)
         v_pred = self.predict(val)

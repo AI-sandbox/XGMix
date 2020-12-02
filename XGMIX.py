@@ -22,8 +22,8 @@ from Admixture.Admixture import read_sample_map, split_sample_map, main_admixtur
 from XGFix.XGFIX import XGFix
 
 from config import verbose, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
-from config import model_name, window_size_cM, smooth_size, missing
-from config import retrain_base, calibrate, n_cores, context_ratio, instance_name, mode_filter_size, smooth_depth
+from config import model_name, window_size_cM, smooth_size, missing, n_cores
+from config import retrain_base, calibrate, context_ratio, instance_name, mode_filter_size, smooth_depth
 
 CLAIMER = 'When using this software, please cite: \n' + \
           'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
@@ -67,7 +67,7 @@ def load_model(path_to_model, verbose=True):
 
 def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, 
           smooth_size, missing, n_cores, verbose, instance_name, 
-          retrain_base, calibrate, n_cores, context_ratio, mode_filter_size, smooth_depth):
+          retrain_base, calibrate, context_ratio, mode_filter_size, smooth_depth):
 
     if verbose:
         print("Preprocessing data...")
@@ -210,7 +210,7 @@ def main(args, verbose=True):
         # Processing data, init and training model
         model = train(args.chm, model_name, args.genetic_map_file, data_path, generations,
                         window_size_cM, smooth_size, missing, n_cores, verbose,
-                        instance_name, retrain_base, calibrate, n_cores, context_ratio,
+                        instance_name, retrain_base, calibrate, context_ratio,
                         mode_filter_size, smooth_depth)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
