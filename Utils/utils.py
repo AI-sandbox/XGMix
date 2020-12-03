@@ -7,6 +7,16 @@ import pandas as pd
 from scipy.interpolate import interp1d
 import sys
 
+def get_num_outs(sample_map_paths, r_admixed=1.0):
+    # r_admixed: generated r_admixed * num-founders for each set
+    # TODO: cap train2 lengths to a pre-defined value.
+    num_outs = []
+    for path in sample_map_paths:
+        with open(path,"r") as f:
+            length = len(f.readlines()) # how many founders.
+            num_outs.append(int(length *r_admixed))
+    return num_outs
+
 def run_shell_cmd(cmd, verb=True):
     if verb:
         print("Running:", cmd)

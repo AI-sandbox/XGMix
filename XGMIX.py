@@ -11,7 +11,7 @@ import sys
 from time import time
 import xgboost as xgb
 
-from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, cM2nsnp
+from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, cM2nsnp, get_num_outs
 from Utils.preprocess import load_np_data, data_process, get_gen_0
 from Utils.postprocess import get_msp_data, write_msp_tsv
 from Utils.visualization import plot_cm, CM
@@ -21,8 +21,9 @@ from Admixture.Admixture import read_sample_map, split_sample_map, main_admixtur
 
 from XGFix.XGFIX import XGFix
 
-from config import verbose, run_simulation, founders_ratios, num_outs, generations, rm_simulated_data
-from config import model_name, window_size_cM, smooth_size, missing, n_cores
+from config import verbose, run_simulation, founders_ratios, generations, rm_simulated_data
+# from config import num_outs
+from config import model_name, window_size_cM, smooth_size, missing, n_cores, r_admixed
 from config import retrain_base, calibrate, context_ratio, instance_name, mode_filter_size, smooth_depth
 
 CLAIMER = 'When using this software, please cite: \n' + \
@@ -167,22 +168,23 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
 
 def main(args, verbose=True, **kwargs):
 
-    run_simulation=kwargs["run_simulation"]
-    founders_ratios=kwargs["founders_ratios"]
-    num_outs=kwargs["num_outs"]
-    generations=kwargs["generations"]
-    rm_simulated_data=kwargs["rm_simulated_data"]
-    model_name=kwargs["model_name"]
-    window_size_cM=kwargs["window_size_cM"]
-    smooth_size=kwargs["smooth_size"]
-    missing=kwargs["missing"]
-    n_cores=kwargs["n_cores"]
-    retrain_base=kwargs["retrain_base"]
-    calibrate=kwargs["calibrate"]
-    context_ratio=kwargs["context_ratio"]
-    instance_name=kwargs["instance_name"]
-    mode_filter_size=kwargs["mode_filter_size"]
-    smooth_depth=kwargs["smooth_depth"]
+    run_simulation=kwargs.get("run_simulation")
+    founders_ratios=kwargs.get("founders_ratios")
+    #num_outs=kwargs.get("num_outs")
+    r_admixed = kwargs.get("r_admixed")
+    generations=kwargs.get("generations")
+    rm_simulated_data=kwargs.get("rm_simulated_data")
+    model_name=kwargs.get("model_name")
+    window_size_cM=kwargs.get("window_size_cM")
+    smooth_size=kwargs.get("smooth_size")
+    missing=kwargs.get("missing")
+    n_cores=kwargs.get("n_cores")
+    retrain_base=kwargs.get("retrain_base")
+    calibrate=kwargs.get("calibrate")
+    context_ratio=kwargs.get("context_ratio")
+    instance_name=kwargs.get("instance_name")
+    mode_filter_size=kwargs.get("mode_filter_size")
+    smooth_depth=kwargs.get("smooth_depth")
 
 
     mode = args.mode # this needs to be done. master change 1.
@@ -219,6 +221,7 @@ def main(args, verbose=True, **kwargs):
             # Simulating data
             if verbose:
                 print("Running simulation...")
+            num_outs = get_num_outs(sample_map_paths, r_admixed)
             num_outs_per_gen = [n//len(generations) for n in num_outs]
             main_admixture(args.chm, data_path, set_names, sample_map_paths, sample_map_idxs,
                            args.reference_file, args.genetic_map_file, num_outs_per_gen, generations)
