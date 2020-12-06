@@ -1,4 +1,5 @@
 __pycache__
+workspace.code-workspace
 .ipynb_checkpoints/
 expts
 *.vcf
