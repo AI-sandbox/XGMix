@@ -44,11 +44,10 @@ def main_admixture_fast(chm, root, sub_instance_names, sample_map_files, sample_
             # get the dataset
             dataset = simulate(ref, sample_map_data, genetic_map_data, out_root=None,
                 num_samples_per_gen=num_outs[i], gens_to_ret=generations,
-                random_seed=94305)
+                random_seed=94305,verbose=verbose)
             
             # apply sample_map_files_idxs trasnform
             idx_to_pop_map = sample_map_files_idxs[i]
-            print(is_same(idx_to_pop_map))
             if not is_same(idx_to_pop_map):
                 for key in dataset.keys():
                     for i in range(len(dataset[key])):
