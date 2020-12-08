@@ -174,7 +174,6 @@ def main(args, verbose=True, **kwargs):
     run_simulation=kwargs.get("run_simulation")
     founders_ratios=kwargs.get("founders_ratios")
     #num_outs=kwargs.get("num_outs")
-    r_admixed = kwargs.get("r_admixed")
     generations=kwargs.get("generations")
     rm_simulated_data=kwargs.get("rm_simulated_data")
     model_name=kwargs.get("model_name")
@@ -188,8 +187,10 @@ def main(args, verbose=True, **kwargs):
     instance_name=kwargs.get("instance_name")
     mode_filter_size=kwargs.get("mode_filter_size")
     smooth_depth=kwargs.get("smooth_depth")
+    r_admixed = kwargs.get("r_admixed")
     simulated_data_path=kwargs.get("simulated_data_path")
     # the above variable has to be a path that ends with /generated_data/
+    # gotta be careful if using rm_simulated_data. NOTE
 
 
     mode = args.mode # this needs to be done. master change 1.
