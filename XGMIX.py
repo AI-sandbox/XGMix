@@ -188,6 +188,8 @@ def main(args, verbose=True, **kwargs):
     instance_name=kwargs.get("instance_name")
     mode_filter_size=kwargs.get("mode_filter_size")
     smooth_depth=kwargs.get("smooth_depth")
+    simulated_data_path=kwargs.get("simulated_data_path")
+    # the above variable has to be a path that ends with /generated_data/
 
 
     mode = args.mode # this needs to be done. master change 1.
@@ -207,6 +209,10 @@ def main(args, verbose=True, **kwargs):
 
         # Set output path: master change 2
         data_path = join_paths(args.output_basename+instance_name, 'generated_data', verb=False)
+
+        # added functionality: users can now specify where pre-imulated data is
+        if run_simulation == False and simulated_data_path is not None:
+            data_path = simulated_data_path + "/"
 
         # Running simulation. If data is already simulated, skipping can save a lot of time
         if run_simulation:
