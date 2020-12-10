@@ -11,14 +11,14 @@ from sklearn.metrics import confusion_matrix
 import sys
 import seaborn as sns
 
-FIGSIZE = None # (20, 1)
+FIGSIZE = (20,1) # None
 MARKERSIZE = 100
 MAXCOLORS = 8
 
 # Define a LAI Colormap
-# CMAP = "tab20b" 
-LAI_HEX = ["#D9414E", "#3457BF", "#8DA6F2", "#96A0D9","#75BFAA", "#A60303", "#254F6B", "#613673"]
-CMAP = ListedColormap(LAI_HEX)
+# CMAP = "tab20b"
+LAI_PALETTE  = ["#A60303", "#3457BF", "#75BFAA", "#613673",  "#8DA6F2", "#AAAAAA", "#254F6B", "#D9414E" ]
+CMAP = ListedColormap(LAI_PALETTE)
 
 def sim_phase_error(n, swap=0.1, noise=0.02, blurr=0.2):
   # defining the true ancestry
@@ -90,6 +90,7 @@ def animate_history(history):
   fig = plt.figure(figsize=FIGSIZE)
   normalize = matplotlib.colors.Normalize(vmin=0, vmax=MAXCOLORS)
   scat = plt.scatter(x, y, c=c, marker="s", cmap=CMAP, norm=normalize, s=MARKERSIZE)
+  plt.xticks([])
   ani = animation.FuncAnimation(fig, update_plot, frames=range(numframes-1), fargs=(history, scat))
   plt.close()
   return ani
@@ -396,7 +397,7 @@ def plot_matching_vs_dist(dist_scram, corr_scram, dists_corr, corrs_corr, labs, 
 
 def plot_matching_vs_dist3(dists, corrs, labs, colors=None, n_bins=500, max_len_cM=15, figsize=(14,8), title="", alpha=1):
 
-    sns.set_style("whitegrid")
+    sns.set_style("white")
 
     haplo_len = len(dists[0])
     if colors is None:

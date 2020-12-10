@@ -70,6 +70,21 @@ def get_msp_data(chm, pred_labels, model_pos, query_pos, n_wind, wind_size, gene
     msp_data = msp_data.astype(str)
 
     return msp_data
+
+def get_samples_from_msp_df(msp_df):
+    """Function for getting sample IDs from a pandas DF containing the output data"""
+
+    # get all columns including sample names
+    query_samples_dub = msp_df.columns[6:]
+
+    # only keep 1 of maternal/paternal 
+    single_ind_idx = np.arange(0,len(query_samples_dub),2)
+    query_samples_sing = query_samples_dub[single_ind_idx]
+
+    # remove the suffix
+    query_samples = [qs[:-2] for qs in query_samples_sing]
+
+    return query_samples
     
 def write_msp_tsv(output_basename, msp_data, populations, query_samples):
     
