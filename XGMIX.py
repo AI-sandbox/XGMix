@@ -34,9 +34,7 @@ CLAIMER = 'When using this software, please cite: \n' + \
           'ICLR, 2020, Workshop AI4AH \n' + \
           'https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1'
 
-<<<<<<< Updated upstream
 FAST_ADMIX = True
-=======
 np.random.seed(94305)
 
 class XGMIX():
@@ -367,7 +365,6 @@ class XGMIX():
         
         return X_phased.reshape(n_haplo, n_snp), Y_phased.reshape(n_haplo, self.num_windows)
 
->>>>>>> Stashed changes
 
 class Struct:
     def __init__(self, **entries):
