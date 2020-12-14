@@ -175,3 +175,31 @@ def cM2nsnp(cM, chm, chm_len_pos, genetic_map_file):
     snp_len = int(round(cM*(chm_len_pos/chm_len_cM)))
 
     return snp_len
+
+def fb2proba(path_to_fb, n_wind=None):
+    
+    with open(path_to_fb) as f:
+        header = f.readline().split("\n")[0]
+        ancestry = np.array(header.split("\t")[1:])
+    A = len(ancestry)
+    
+    fb_df = pd.read_csv(path_to_fb, sep="\t", skiprows=[0])
+
+    samples = [s.split(":::")[0] for s in fb_df.columns[4::A*2]]
+    
+    # Probabilities in snp space
+    fb = np.array(fb_df)[:,4:]
+    C, AN = fb.shape
+    N = AN//A
+    fb_reshaped = fb.reshape(C, N, A)      # (C, N, A)
+    proba = np.swapaxes(fb_reshaped, 0, 1) # (N, C, A)
+    
+    # Probabilities in window space
+    if n_wind is not None:
+        gen_pos = np.array(fb_df['genetic_position'])
+        w_cM = np.arange(gen_pos[0], gen_pos[-1], step = gen_pos[-1]/n_wind)
+        f = interp1d(gen_pos, np.arange(C), fill_value=(0, C), bounds_error=False) 
+        w_idx = f(w_cM).astype(int)
+        proba = proba[:,w_idx,:]
+    
+    return proba

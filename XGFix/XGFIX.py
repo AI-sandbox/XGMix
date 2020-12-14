@@ -8,8 +8,8 @@ from time import time
 
 from XGFix.phasing import *
 from XGFix.simple_switch import simple_switch
-
 from XGFix.Calibration import calibrator_module, normalize_prob
+from Utils.utils import fb2proba
 
 def mask_base_prob(base_prob, d=0):
     """
@@ -26,7 +26,7 @@ def mask_base_prob(base_prob, d=0):
     masked[:,np.arange(c+d+1,W),:] = 0
     return masked
 
-def check(Y_m, Y_p, base, check_criterion):
+def check(Y_m, Y_p, w, base, check_criterion):
 
     check = False
 
@@ -111,6 +111,11 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
     # initializing base probabilities
     if base_prob is None:
         base_prob = model._get_smooth_data(data=np.array([X_m, X_p]), return_base_out=True)
+    else:
+        N, W, A = base_prob.shape
+        assert N == 2, "Can currently only phase one individual"
+        assert W == model.num_windows, "Window size of base probabilites not compatible with smoother"
+        assert A == model.num_anc, "Number of Ancestry of base probabilites not compatible with smoother"
 
     # inferred labels of initial position
     Y_m, Y_p = model.predict(np.array([X_m, X_p]))
@@ -155,7 +160,7 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
         for w in iter_windows:
 
             # Heuristic to save computation, only check if there's a nuance
-            if check(Y_m, Y_p, base_prob, check_criterion):
+            if check(Y_m, Y_p, w, base_prob, check_criterion):
 
                 # Different permutations depending on window position
                 if w in centers:
@@ -235,7 +240,6 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
     if end_naive_switch:
         _, _, M_track, _, _ = simple_switch(Y_m,Y_p,slack=end_naive_switch,cont=False,verbose=False,animate=False)
         X_m, X_p = correct_phase_error(X_m, X_p, M_track, model.win)
-        # base_prob = model._get_smooth_data(data=np.array([X_m, X_p]), return_base_out=True)
         base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, model.win))
         smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
         Y_m, Y_p = xgfix_predict(smooth_data, model)
