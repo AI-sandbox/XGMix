@@ -110,7 +110,7 @@ def snp_intersection(pos1, pos2, verbose=False):
     return idx1, idx2
 
 
-def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, verbose=True):
+def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, return_vcf_idx=False, verbose=True):
     """
     Converts vcf file to numpy matrix. 
     If SNP position format is specified, then comply with that format by filling in values 
@@ -159,9 +159,10 @@ def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, verbos
     missing_mask = np.logical_and(mat_vcf_2d != 0, mat_vcf_2d != 1)
     mat_vcf_2d[missing_mask] = miss_fill
 
-    vcf_samples = vcf_data['samples']
-
     # return npy matrix
+    if return_vcf_idx:
+        return mat_vcf_2d, vcf_idx
+
     return mat_vcf_2d
 
 def cM2nsnp(cM, chm, chm_len_pos, genetic_map_file):
@@ -203,3 +204,117 @@ def fb2proba(path_to_fb, n_wind=None):
         proba = proba[:,w_idx,:]
     
     return proba
+
+def update_vcf(vcf_data, mask=None, Updates=None):
+
+    out = vcf_data.copy()
+    if mask is not None:
+        for key in vcf_data.keys():
+            if key != "samples":
+                out[key] = vcf_data[key][mask]
+
+    if Updates is not None:
+        for key in Updates.keys():
+            if key != "samples":
+                out[key] = Updates[key]
+
+    return out
+
+# -------------- numpy to vcf utils --------------
+
+
+def get_name(name_len=8):
+    letters = string.ascii_lowercase + string.ascii_uppercase + string.digits
+    return ''.join(random.choice(letters) for i in range(name_len)) 
+
+def npy_to_vcf(reference, npy, results_file):
+    """
+    - reference: str path to reference file which provides metadata for the results
+                 or alternatively, a allel.read_vcf output
+    - npy: npy matrix - shape: (num_samples, num_snps)
+           make sure npy file has same snp positions
+    - results_file: str output vcf path
+    
+    this is a very light version of npy_to_vcf for LAI applications
+    
+    Function behavior
+    a vcf file called <results_file> with data in npy file and metadata from reference
+    - metadata includes all fields except for genotype data
+    - npy file must follow convention where maternal and paternal sequences appear one after the other
+      for each sample
+
+    NOTE: New to production. Has not been bullet-tested.
+    """
+    
+    # read in the input vcf data
+    if type(reference) == str:
+        data = allel.read_vcf(reference)
+    else:
+        data = reference
+    
+    # infer chromosome length and number of samples
+    chmlen, _, _ = data["calldata/GT"].shape
+    h, c = npy.shape
+
+    assert chmlen == c, "reference and numpy matrix not compatible"
+
+    n = h//2
+
+    # TODO: Add .vcf at the end if not .vcf or .bcf
+    
+    # TODO: Make use o samples?
+    if "samples" in list(data.keys()):
+        data_samples = data["samples"]
+        del data["samples"]
+    else:
+        data_samples = [get_name() for _ in range(n)]
+
+
+    # metadata 
+
+    # create a dataframe with npy data
+    df = pd.DataFrame() # .from_dict(data)
+
+    for key in data.keys():
+        # print(key)
+        # print(data[key])
+        if len(data[key].shape) == 1 and len(data[key]) == chmlen:
+            df[key] = data[key]
+    
+    # df["CHROM"]  = data["variants/CHROM"]
+    # df['POS']    = data["variants/POS"]
+    # df["ID"]     = data["variants/ID"]
+    # df["REF"]    = data["variants/REF"]
+    # df["VAR"]    = data["variants/ALT"][:,0] # ONLY THE FIRST SINCE WE ONLY CARE ABOUT BI-ALLELIC SNPS HERE FOR NOW
+    # df["QUAL"]   = data["variants/QUAL"]
+    # df["FILTER"] = ["PASS"]*chmlen
+    # df["INFO"]   = ["."]*chmlen
+    # df["FORMAT"] = ["GT"]*chmlen
+    
+    # genotype data for each sample
+    for i in range(n):
+    
+        # get that particular individual's maternal and paternal snps
+        maternal = npy[i*2,:].astype(str) # maternal is the first
+        paternal = npy[i*2+1,:].astype(str) # paternal is the second
+
+        # create "maternal | paternal"
+        lst = [maternal, ["|"]*chmlen, paternal]
+        genotype_person = list(map(''.join, zip(*lst)))
+
+        # get a random name and assign a column to them
+        # df[get_name()] = genotype_person
+        df[data_samples[i]] = genotype_person
+
+    # write results
+    # metadata
+    with open(results_file,"w") as f:
+        f.write("##fileformat=VCFv4.1\n")
+        f.write("##source=pyadmix (XGMix)\n")
+        f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Phased Genotype">\n')
+        f.write("#"+"\t".join(df.columns)+"\n") # mandatory header
+    
+    # genotype data
+    df.to_csv(results_file,sep="\t",index=False,mode="a",header=False)
+    
+    return

@@ -11,7 +11,7 @@ import sys
 from time import time
 import xgboost as xgb
 
-from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, cM2nsnp, get_num_outs
+from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, npy_to_vcf, cM2nsnp, get_num_outs
 from Utils.preprocess import load_np_data, data_process, get_gen_0
 from Utils.postprocess import get_msp_data, write_msp_tsv
 from Utils.visualization import plot_cm, CM
@@ -261,17 +261,28 @@ def main(args, verbose=True, **kwargs):
 
     # Predict the query data
     if args.query_file is not None:
-        # Load and process user query vcf file
+        
         if verbose:
             print("Loading and processing query file...")
+
+        # Load and process user query vcf file
         query_vcf_data = read_vcf(args.query_file, chm=args.chm)
-        X_query = vcf_to_npy(query_vcf_data, model.snp_pos, model.snp_ref, verbose=verbose)
+        X_query, vcf_idx = vcf_to_npy(query_vcf_data, model.snp_pos, model.snp_ref, return_vcf_idx=True, verbose=verbose)
 
         # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
         if verbose:
             print("Inferring ancestry on query data...")
+
         if args.phase:
             X_query_phased, label_pred_query_window = model.phase(X_query)
+            if verbose:
+                print("Writing phased SNPs to disc...")
+            # TODO: 
+            # - make write_vcf able to be read by read_vcf
+            # - write according to model format (Both ref and alt)
+            # query_vcf_data = update_vcf(query_vcf_data, mask=vcf_idx, Updates={"variants/REF": model.snp_ref})
+            # query_prefix = ".".join(args.query_file.split(".")[:-1])
+            # npy_to_vcf(query_vcf_data, X_query_phased, query_prefix+".vcf")
         else: 
             label_pred_query_window = model.predict(X_query)
 

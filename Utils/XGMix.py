@@ -22,9 +22,9 @@ from XGFix.XGFIX import XGFix
 
 class XGMIX():
 
-    def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None, save=None,
+    def __init__(self,chmlen,win,sws,num_anc,snp_pos=None,snp_ref=None,population_order=None,save=None,
                 base_params=[20,4],smooth_params=[100,4],cores=16,lr=0.1,reg_lambda=1,reg_alpha=0,model="xgb",
-                mode_filter_size=5,calibrate=True,context_ratio=0.0):
+                mode_filter_size=5,calibrate=False,context_ratio=0.0):
 
         self.chmlen = chmlen
         self.win = win
@@ -88,8 +88,7 @@ class XGMIX():
             # fit model
             model = xgb.XGBClassifier(n_estimators=self.trees,max_depth=self.max_depth,
                     learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha,
-                    nthread=self.cores, missing=self.missing, random_state=1) 
-            #print(tt.shape, ll_t.shape)
+                    nthread=self.cores, missing=self.missing, random_state=1, num_class=self.num_anc) 
             model.fit(tt,ll_t)
             self.base["model"+str(idx*self.win)] = model
 
@@ -151,7 +150,8 @@ class XGMIX():
 
         tt,ttl = self._get_smooth_data(train,train_lab)
         self.smooth = xgb.XGBClassifier(n_estimators=self.s_trees,max_depth=self.s_max_depth,
-            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, random_state=1)
+            learning_rate=self.lr, reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, nthread=self.cores, 
+            random_state=1, num_class=self.num_anc)
         self.smooth.fit(tt,ttl)
 
     def _evaluate_base(self,train,train_lab,val,val_lab,verbose=True):
@@ -324,10 +324,15 @@ class XGMIX():
                 if type(val) in [int,float,str,bool,np.float64,np.float32,np.int]:
                     f.write("{}\t{}\n".format(attr,val))
 
-    def phase(self,X,verbose=False):
+    def phase(self,X,base=None,verbose=False):
         """
         Wrapper for XGFix
         """
+
+        if self.smooth is None:
+            print("Smoother is not trained, returning original haplotypes")
+            return X, None
+
         n_haplo, n_snp = X.shape
         n_ind = n_haplo//2
         X_phased = np.zeros((n_ind,2,n_snp))
@@ -336,7 +341,7 @@ class XGMIX():
         for i, X_i in enumerate(X.reshape(n_ind,2,n_snp)):
             sys.stdout.write("\rPhasing individual %i/%i" % (i+1, n_ind))
             X_m, X_p = X_i
-            X_m, X_p, Y_m, Y_p, history, XGFix_tracker = XGFix(X_m, X_p, self, verbose=verbose)
+            X_m, X_p, Y_m, Y_p, history, XGFix_tracker = XGFix(X_m, X_p, self, base_prob=base, verbose=verbose)
             X_phased[i] = np.copy(np.array((X_m,X_p)))
             Y_phased[i] = np.copy(np.array((Y_m,Y_p)))
 

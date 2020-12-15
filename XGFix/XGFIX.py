@@ -83,20 +83,15 @@ def xgfix_predict_proba(data, model):
 
 def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_center_offset=0, prob_comp="max", d=None, prior_switch_prob = 0.5,
             naive_switch=None, end_naive_switch=None, padding=True, calibrate=False, base_prob=None, verbose=False):
-
-    print("Using updated version")
     
     model.mode_filter_size = 0
     model.calibrate = calibrate
-
-    if d is None:
-        d = int((model.sws-1)/2)
 
     if verbose:
         # print configs
         print("max center offset:", max_center_offset)
         print("non_lin_s:", non_lin_s)
-        print("Mask with:", d)
+        print("Mask:", d)
         print("including naive switch:", naive_switch)
         print("including end naive switch:", end_naive_switch)
         print("prior switch prob:", prior_switch_prob)
@@ -111,11 +106,16 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
     # initializing base probabilities
     if base_prob is None:
         base_prob = model._get_smooth_data(data=np.array([X_m, X_p]), return_base_out=True)
+        N, W, A = base_prob.shape # Number of individiuals, number of windows and number of ancestry
     else:
-        N, W, A = base_prob.shape
-        assert N == 2, "Can currently only phase one individual"
-        assert W == model.num_windows, "Window size of base probabilites not compatible with smoother"
-        assert A == model.num_anc, "Number of Ancestry of base probabilites not compatible with smoother"
+        N, W, A = base_prob.shape 
+    
+    assert N == 2, "Can currently only phase one individual"
+    assert W == model.num_windows, "Number of base probabilites windows not compatible with smoother"
+    assert A == model.num_anc, "Number of Ancestry of base probabilites not compatible with smoother"
+
+    sws = model.sws # smoother size
+    window_size = model.win # window size
 
     # inferred labels of initial position
     Y_m, Y_p = model.predict(np.array([X_m, X_p]))
@@ -124,8 +124,8 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
     history = np.array([Y_m, Y_p])
 
     # define windows to iterate through
-    centers = (np.arange(model.num_windows-model.sws+1)+(model.sws-1)/2).astype(int)
-    iter_windows = np.arange(1,model.num_windows) if padding else centers
+    centers = (np.arange(W-sws+1)+(sws-1)/2).astype(int)
+    iter_windows = np.arange(1,W) if padding else centers
 
     # Track progresss
     X_m_its = [] # monitor convergence
@@ -141,9 +141,8 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
         if naive_switch:
             # Naive switch: heuristic to catch obvious errors and save computations
             _, _, M_track, _, _ = simple_switch(Y_m,Y_p,slack=naive_switch,cont=False,verbose=False,animate=False)
-            X_m, X_p = correct_phase_error(X_m, X_p, M_track, model.win)
-            # base_prob = model._get_smooth_data(data=np.array([X_m, X_p]), return_base_out=True)
-            base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, model.win))
+            X_m, X_p = correct_phase_error(X_m, X_p, M_track, window_size)
+            base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, window_size))
             smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
             Y_m, Y_p = xgfix_predict(smooth_data, model)
             history = np.dstack([history, [Y_m, Y_p]])
@@ -171,7 +170,7 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
                     max_center_offset_w, non_lin_s_w = 0, 0
                 
                 # defining scope
-                scope_idxs = center + np.arange(model.sws) - int((model.sws-1)/2)
+                scope_idxs = center + np.arange(sws) - int((sws-1)/2)
 
                 # indices of pair-wise permutations
                 switch_idxs = []
@@ -197,8 +196,12 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
                     mps.append(m); mps.append(p);
 
                 # get 2D probabilities for permutations
-                masked_inps = mask_base_prob(np.array(mps), d=d).reshape(len(mps),-1)
-                outs = xgfix_predict_proba(masked_inps, model)
+                mps = np.array(mps)
+                if d is not None:
+                    mps = mask_base_prob(mps, d=d)
+                
+                mps = mps.reshape(len(mps),-1)
+                outs = xgfix_predict_proba(mps, model)
                 
                 # map permutation probabilities to a scalar (R^2 -> R) for comparison
                 if prob_comp=="prod":
@@ -215,7 +218,7 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
                 if best_switch_prob*prior_switch_prob > original_prob*(1-prior_switch_prob):
                     switched = True
                     m, p = [], []
-                    switch_idx = np.concatenate([[0], best_switch, [model.num_windows]])
+                    switch_idx = np.concatenate([[0], best_switch, [W]])
                     for s in range(len(switch_idx)-1):
                         m_s, p_s = base_prob[:,np.arange(switch_idx[s],switch_idx[s+1]),:]
                         if s%2:
@@ -230,7 +233,7 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
                         XGFix_tracker = track_switch(XGFix_tracker[0], XGFix_tracker[1], switch)
 
                     # correct inferred error on SNP level and re-label
-                    X_m, X_p = correct_phase_error(X_m, X_p, M_track, model.win)
+                    X_m, X_p = correct_phase_error(X_m, X_p, M_track, window_size)
                     smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
                     Y_m, Y_p = xgfix_predict(smooth_data, model)
                     history = np.dstack([history, [Y_m, Y_p]])
@@ -239,8 +242,8 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
         end_naive_switch = naive_switch
     if end_naive_switch:
         _, _, M_track, _, _ = simple_switch(Y_m,Y_p,slack=end_naive_switch,cont=False,verbose=False,animate=False)
-        X_m, X_p = correct_phase_error(X_m, X_p, M_track, model.win)
-        base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, model.win))
+        X_m, X_p = correct_phase_error(X_m, X_p, M_track, window_size)
+        base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, window_size))
         smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
         Y_m, Y_p = xgfix_predict(smooth_data, model)
         history = np.dstack([history, [Y_m, Y_p]])
