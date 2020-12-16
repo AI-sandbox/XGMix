@@ -172,8 +172,12 @@ def read_genetic_map(genetic_map_path, chm=None):
     gen_map_df = pd.read_csv(genetic_map_path, sep="\t", comment="#", header=None, dtype="str")
     gen_map_df.columns = ["chm", "pos", "pos_cm"]
     gen_map_df = gen_map_df.astype({'chm': str, 'pos': np.int64, 'pos_cm': np.float64})
+
     if chm is not None:
-        gen_map_df = gen_map_df[gen_map_df.chm == chm]
+        if len(gen_map_df[gen_map_df.chm == chm]) == 0:
+            gen_map_df = gen_map_df[gen_map_df.chm == "chr"+chm]
+        else:
+            gen_map_df = gen_map_df[gen_map_df.chm == chm]
 
     return gen_map_df
 
