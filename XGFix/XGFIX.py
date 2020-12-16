@@ -19,6 +19,7 @@ def mask_base_prob(base_prob, d=0):
         - A is number of Ancestry
     filter out all windows that are not more than d windows away from center
     """
+    base_prob = np.array(base_prob)
     H, W, A = base_prob.shape
     c = int((W-1)/2)
     masked = np.copy(base_prob)
@@ -48,44 +49,34 @@ def check(Y_m, Y_p, w, base, check_criterion):
 
     return check
 
-def xgfix_predict(data, model):
-    
-    Y_m, Y_p = model.smooth.predict(data).reshape(2,len(model.base))
-    
-    if model.calibrate:
-        n = 2
-        proba = model.smooth.predict_proba(data).reshape(n,-1,model.num_anc)
-        proba_flatten=proba.reshape(-1,model.num_anc)
-        iso_prob=np.zeros((proba_flatten.shape[0],model.num_anc))
-        for i in range(model.num_anc):    
-            iso_prob[:,i] = model.calibrator[i].transform(proba_flatten[:,i])
-        proba = normalize_prob(iso_prob, model.num_anc).reshape(n,-1,model.num_anc)
-        Y_m, Y_p = np.argmax(proba, axis = 2)
+def base_to_smooth_data(base_prob, sws, pad_size=None, labels=None):
 
-    return Y_m, Y_p
+    base_prob = np.copy(base_prob)
+    N, W, A = base_prob.shape
+
+    if pad_size is None:
+        pad_size = (1+sws)//2
+
+    # pad it.
+    pad_left = np.flip(base_prob[:,0:pad_size,:],axis=1)
+    pad_right = np.flip(base_prob[:,-pad_size:,:],axis=1)
+    base_prob_padded = np.concatenate([pad_left,base_prob,pad_right],axis=1)
+
+    # window it.
+    windowed_data = np.zeros((N,W,A*sws),dtype="float32")
+    for ppl,dat in enumerate(base_prob_padded):
+        for win in range(windowed_data.shape[1]):
+            windowed_data[ppl,win,:] = dat[win:win+sws].ravel()
+
+    # reshape
+    windowed_data = windowed_data.reshape(-1,windowed_data.shape[2])
+    windowed_labels = None if labels is None else labels.reshape(-1)
+
+    return windowed_data, windowed_labels
 
 
-def xgfix_predict_proba(data, model):
-
-    outs = model.smooth.predict_proba(data).reshape(-1,2,model.num_anc)
-
-    if model.calibrate:
-        n = len(data)
-        proba = model.smooth.predict_proba(data).reshape(n,-1,model.num_anc)
-        proba_flatten=proba.reshape(-1,model.num_anc)
-        iso_prob=np.zeros((proba_flatten.shape[0],model.num_anc))
-        for i in range(model.num_anc):    
-            iso_prob[:,i] = model.calibrator[i].transform(proba_flatten[:,i])
-        proba = normalize_prob(iso_prob, model.num_anc).reshape(n,-1,model.num_anc)
-        outs = proba.reshape(-1,2,model.num_anc)
-
-    return outs
-
-def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_center_offset=0, prob_comp="max", d=None, prior_switch_prob = 0.5,
-            naive_switch=None, end_naive_switch=None, padding=True, calibrate=False, base_prob=None, verbose=False):
-    
-    model.mode_filter_size = 0
-    model.calibrate = calibrate
+def XGFix(M, P, base_prob, smoother, max_it=50, non_lin_s=0, check_criterion="disc_smooth", max_center_offset=0, prob_comp="max", d=None, prior_switch_prob = 0.5,
+            naive_switch=None, end_naive_switch=None, padding=True, verbose=False):
 
     if verbose:
         # print configs
@@ -97,39 +88,27 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
         print("prior switch prob:", prior_switch_prob)
         print("check criterion:", check_criterion)
         print("probability comparison:", prob_comp)
-        print("model calibration:", model.calibrate)
         print("padding:", padding)
-        
+
+    N, W, A = base_prob.shape 
+    sws = len(smoother.feature_importances_)//A # smoother size
+    window_size = len(M)//W # window size
+
     # initial position
-    X_m, X_p = np.copy(M), np.copy(P)
-
-    # initializing base probabilities
-    if base_prob is None:
-        base_prob = model._get_smooth_data(data=np.array([X_m, X_p]), return_base_out=True)
-        N, W, A = base_prob.shape # Number of individiuals, number of windows and number of ancestry
-    else:
-        N, W, A = base_prob.shape 
-    
-    assert N == 2, "Can currently only phase one individual"
-    assert W == model.num_windows, "Number of base probabilites windows not compatible with smoother"
-    assert A == model.num_anc, "Number of Ancestry of base probabilites not compatible with smoother"
-
-    sws = model.sws # smoother size
-    window_size = model.win # window size
+    X_m, X_p = np.copy([M,P]).astype(int)
 
     # inferred labels of initial position
-    Y_m, Y_p = model.predict(np.array([X_m, X_p]))
-
-    # record the progression
-    history = np.array([Y_m, Y_p])
+    smooth_data, _ = base_to_smooth_data(base_prob, sws=sws) 
+    Y_m, Y_p = smoother.predict(smooth_data).reshape(2,W)
 
     # define windows to iterate through
     centers = (np.arange(W-sws+1)+(sws-1)/2).astype(int)
     iter_windows = np.arange(1,W) if padding else centers
 
-    # Track progresss
+    # Track convergence and progression
     X_m_its = [] # monitor convergence
-    XGFix_tracker = (np.zeros_like(Y_m), np.ones_like(Y_p)) # monitor progression
+    XGFix_tracker = (np.zeros_like(Y_m), np.ones_like(Y_p)) 
+    history = np.array([Y_m, Y_p])
 
     # Fix
     st = time()
@@ -143,8 +122,8 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
             _, _, M_track, _, _ = simple_switch(Y_m,Y_p,slack=naive_switch,cont=False,verbose=False,animate=False)
             X_m, X_p = correct_phase_error(X_m, X_p, M_track, window_size)
             base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, window_size))
-            smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
-            Y_m, Y_p = xgfix_predict(smooth_data, model)
+            smooth_data, _ = base_to_smooth_data(base_prob, sws=sws) 
+            Y_m, Y_p = smoother.predict(smooth_data).reshape(2,W)
             history = np.dstack([history, [Y_m, Y_p]])
 
         # Stop if converged
@@ -196,13 +175,9 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
                     mps.append(m); mps.append(p);
 
                 # get 2D probabilities for permutations
-                mps = np.array(mps)
-                if d is not None:
-                    mps = mask_base_prob(mps, d=d)
-                
-                mps = mps.reshape(len(mps),-1)
-                outs = xgfix_predict_proba(mps, model)
-                
+                mps = np.array(mps) if d is None else mask_base_prob(mps, d=d)
+                outs = smoother.predict_proba( mps.reshape(len(mps),-1) ).reshape(-1,2,A)
+
                 # map permutation probabilities to a scalar (R^2 -> R) for comparison
                 if prob_comp=="prod":
                     probs = np.prod(np.max(outs,axis=2),axis=1)
@@ -234,8 +209,8 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
 
                     # correct inferred error on SNP level and re-label
                     X_m, X_p = correct_phase_error(X_m, X_p, M_track, window_size)
-                    smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
-                    Y_m, Y_p = xgfix_predict(smooth_data, model)
+                    smooth_data, _ = base_to_smooth_data(base_prob, sws=sws)  
+                    Y_m, Y_p = smoother.predict(smooth_data).reshape(2,W)
                     history = np.dstack([history, [Y_m, Y_p]])
     
     if naive_switch:
@@ -244,8 +219,8 @@ def XGFix(M, P, model, max_it=50, non_lin_s=0, check_criterion="disc_base", max_
         _, _, M_track, _, _ = simple_switch(Y_m,Y_p,slack=end_naive_switch,cont=False,verbose=False,animate=False)
         X_m, X_p = correct_phase_error(X_m, X_p, M_track, window_size)
         base_prob = np.array(correct_phase_error(base_prob[0], base_prob[1], M_track, window_size))
-        smooth_data, _ = model._get_smooth_data(base_out = np.copy(base_prob))
-        Y_m, Y_p = xgfix_predict(smooth_data, model)
+        smooth_data, _ = base_to_smooth_data(base_prob, sws=sws) 
+        Y_m, Y_p = smoother.predict(smooth_data).reshape(2,W)
         history = np.dstack([history, [Y_m, Y_p]])
 
     history = np.dstack([history, [Y_m, Y_p]])

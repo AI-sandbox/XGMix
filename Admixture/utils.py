@@ -5,13 +5,10 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
 import numpy as np
 from operator import itemgetter
+import pandas as pd
 import os
 import sys
 import re
-
-import random
-import string
-import pandas as pd
 
 # -------------- utils --------------
 

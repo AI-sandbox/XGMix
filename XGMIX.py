@@ -11,9 +11,10 @@ import sys
 from time import time
 import xgboost as xgb
 
-from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, npy_to_vcf, cM2nsnp, get_num_outs
+from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, npy_to_vcf, update_vcf 
+from Utils.utils import cM2nsnp, get_num_outs, read_genetic_map
 from Utils.preprocess import load_np_data, data_process, get_gen_0
-from Utils.postprocess import get_msp_data, write_msp_tsv
+from Utils.postprocess import get_meta_data, write_msp_tsv
 from Utils.visualization import plot_cm, CM
 from Utils.Calibration import calibrator_module, normalize_prob
 from Utils.XGMix import XGMIX
@@ -70,17 +71,17 @@ def load_model(path_to_model, verbose=True):
 
     return model
 
-def train(chm, model_name, genetic_map_file, data_path, generations, window_size_cM, 
+def train(chm, model_name, genetic_map_df, data_path, generations, window_size_cM, 
           smooth_size, missing, n_cores, verbose, instance_name, 
           retrain_base, calibrate, context_ratio, mode_filter_size, smooth_depth, gen_0,
-          output_basename):
+          output_path):
 
     if verbose:
         print("Preprocessing data...")
     
     # ------------------ Config ------------------
     model_name += "_chm_" + chm
-    model_repo = join_paths(output_basename+"/"+instance_name, "models", verb=False)
+    model_repo = join_paths(output_path, "models", verb=False)
     model_repo = join_paths(model_repo, model_name, verb=False)
     model_path = model_repo + "/" + model_name + ".pkl"
 
@@ -98,7 +99,7 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     chm_len = len(snp_pos)
     num_anc = len(pop_order)
 
-    window_size_pos = cM2nsnp(cM=window_size_cM, chm=chm, chm_len_pos=chm_len, genetic_map_file=genetic_map_file)
+    window_size_pos = cM2nsnp(cM=window_size_cM, chm=chm, chm_len_pos=chm_len, genetic_map=genetic_map_df)
     
     # ------------------ Process data ------------------
     # gather feature data files (binary representation of variants)
@@ -160,7 +161,6 @@ def train(chm, model_name, genetic_map_file, data_path, generations, window_size
     print("Saving model at {}".format(model_path))
     pickle.dump(model, open(model_path,"wb"))
 
-
     # write the model parameters of type int, float, str into a file config.
     # so there is more clarity on what the model parameters were.
     # NOTE: Not tested fully yet. # TODO
@@ -193,6 +193,8 @@ def main(args, verbose=True, **kwargs):
     # the above variable has to be a path that ends with /generated_data/
     # gotta be careful if using rm_simulated_data. NOTE
 
+    output_path = args.output_basename if instance_name == "" else join_paths(args.output_basename,instance_name)
+    gen_map_df = read_genetic_map(args.genetic_map_file, args.chm)
 
     mode = args.mode # this needs to be done. master change 1.
     # The simulation can't handle generation 0, add it separetly
@@ -210,7 +212,7 @@ def main(args, verbose=True, **kwargs):
     elif args.mode == "train":
 
         # Set output path: master change 2
-        data_path = join_paths(args.output_basename+instance_name, 'generated_data', verb=False)
+        data_path = join_paths(output_path, 'generated_data', verb=False)
 
         # added functionality: users can now specify where pre-imulated data is
         if run_simulation == False and simulated_data_path is not None:
@@ -252,10 +254,10 @@ def main(args, verbose=True, **kwargs):
             print("Using simulated data from " + data_path + " ...")
 
         # Processing data, init and training model
-        model = train(args.chm, model_name, args.genetic_map_file, data_path, generations,
+        model = train(args.chm, model_name, gen_map_df, data_path, generations,
                         window_size_cM, smooth_size, missing, n_cores, verbose,
                         instance_name, retrain_base, calibrate, context_ratio,
-                        mode_filter_size, smooth_depth, gen_0, args.output_basename)
+                        mode_filter_size, smooth_depth, gen_0, output_path)
         if verbose:
             print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
@@ -266,8 +268,8 @@ def main(args, verbose=True, **kwargs):
             print("Loading and processing query file...")
 
         # Load and process user query vcf file
-        query_vcf_data = read_vcf(args.query_file, chm=args.chm)
-        X_query, vcf_idx = vcf_to_npy(query_vcf_data, model.snp_pos, model.snp_ref, return_vcf_idx=True, verbose=verbose)
+        query_vcf_data = read_vcf(args.query_file, chm=args.chm, fields="*")
+        X_query, vcf_idx, fmt_idx = vcf_to_npy(query_vcf_data, model.snp_pos, model.snp_ref, return_idx=True, verbose=verbose)
 
         # predict and finding effective prediction for intersection of query SNPs and model SNPs positions
         if verbose:
@@ -277,22 +279,25 @@ def main(args, verbose=True, **kwargs):
             X_query_phased, label_pred_query_window = model.phase(X_query)
             if verbose:
                 print("Writing phased SNPs to disc...")
-            # TODO: 
-            # - make write_vcf able to be read by read_vcf
-            # - write according to model format (Both ref and alt)
-            # query_vcf_data = update_vcf(query_vcf_data, mask=vcf_idx, Updates={"variants/REF": model.snp_ref})
-            # query_prefix = ".".join(args.query_file.split(".")[:-1])
-            # npy_to_vcf(query_vcf_data, X_query_phased, query_prefix+".vcf")
+            # TODO: is there a way to infer the Alternating SNPs?
+            U = {
+                "variants/REF": model.snp_ref[fmt_idx],
+                "variants/ALT": np.expand_dims(np.repeat("NA", len(fmt_idx)),axis=1)
+            }
+            query_vcf_data = update_vcf(query_vcf_data, mask=vcf_idx, Updates=U)
+            query_phased_prefix = output_path + "/" + "query_file_phased"
+            npy_to_vcf(query_vcf_data, X_query_phased[:,fmt_idx], query_phased_prefix)
         else: 
             label_pred_query_window = model.predict(X_query)
 
         # writing the result to disc
         if verbose:
             print("Writing inference to disc...")
-        msp_data = get_msp_data(args.chm, label_pred_query_window, model.snp_pos,
+        meta_data = get_meta_data(args.chm, model.snp_pos,
                                 query_vcf_data['variants/POS'], model.num_windows,
-                                model.win, args.genetic_map_file)
-        write_msp_tsv(args.output_basename, msp_data, model.population_order, query_vcf_data['samples'])
+                                model.win, gen_map_df)
+        msp_prefix = output_path + "/" + args.output_basename
+        write_msp_tsv(msp_prefix, meta_data, label_pred_query_window, model.population_order, query_vcf_data['samples'])
 
     if mode=="train" and rm_simulated_data:
         if verbose:
@@ -347,4 +352,9 @@ if __name__ == "__main__":
     # Run it
     if verbose:
         print("Launching XGMix in", mode, "mode...")
-    main(args)
+    main(args, verbose=verbose, run_simulation=run_simulation, founders_ratios=founders_ratios,
+        generations=generations, rm_simulated_data=rm_simulated_data,
+        model_name=model_name, window_size_cM=window_size_cM, smooth_size=smooth_size, 
+        missing=missing, n_cores=n_cores, r_admixed=r_admixed,
+        retrain_base=retrain_base, calibrate=calibrate, context_ratio=context_ratio, 
+        instance_name=instance_name, mode_filter_size=mode_filter_size, smooth_depth=smooth_depth)

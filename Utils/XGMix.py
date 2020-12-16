@@ -13,7 +13,6 @@ import xgboost as xgb
 
 from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, cM2nsnp
 from Utils.preprocess import load_np_data, data_process, get_gen_0
-from Utils.postprocess import get_msp_data, write_msp_tsv
 from Utils.visualization import plot_cm, CM
 from Utils.Calibration import calibrator_module, normalize_prob
 from Admixture.Admixture import read_sample_map, split_sample_map, main_admixture
@@ -30,8 +29,7 @@ class XGMIX():
         self.win = win
         self.save = save
         self.sws = sws if sws %2 else sws-1
-        # TODO: make it a separate parameter in config.
-        self.context = int(self.win*context_ratio) # left and right are separate contexts.
+        self.context = int(self.win*context_ratio)
         
         self.num_anc = num_anc
         self.snp_pos = snp_pos
@@ -335,13 +333,14 @@ class XGMIX():
 
         n_haplo, n_snp = X.shape
         n_ind = n_haplo//2
-        X_phased = np.zeros((n_ind,2,n_snp))
-        Y_phased = np.zeros((n_ind,2,self.num_windows))
+        X_phased = np.zeros((n_ind,2,n_snp), dtype=int)
+        Y_phased = np.zeros((n_ind,2,self.num_windows), dtype=int)
 
         for i, X_i in enumerate(X.reshape(n_ind,2,n_snp)):
             sys.stdout.write("\rPhasing individual %i/%i" % (i+1, n_ind))
-            X_m, X_p = X_i
-            X_m, X_p, Y_m, Y_p, history, XGFix_tracker = XGFix(X_m, X_p, self, base_prob=base, verbose=verbose)
+            X_m, X_p = np.copy(X_i)
+            base_prob = self._get_smooth_data(X_i, return_base_out=True)
+            X_m, X_p, Y_m, Y_p, history, XGFix_tracker = XGFix(X_m, X_p, base_prob=base_prob, smoother=self.smooth, verbose=verbose)
             X_phased[i] = np.copy(np.array((X_m,X_p)))
             Y_phased[i] = np.copy(np.array((Y_m,Y_p)))
 

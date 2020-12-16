@@ -4,7 +4,9 @@ import gzip
 import numpy as np
 import os
 import pandas as pd
+import random
 from scipy.interpolate import interp1d
+import string
 import sys
 
 def get_num_outs(sample_map_paths, r_admixed=1.0):
@@ -110,7 +112,7 @@ def snp_intersection(pos1, pos2, verbose=False):
     return idx1, idx2
 
 
-def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, return_vcf_idx=False, verbose=True):
+def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, return_idx=False, verbose=True):
     """
     Converts vcf file to numpy matrix. 
     If SNP position format is specified, then comply with that format by filling in values 
@@ -160,17 +162,30 @@ def vcf_to_npy(vcf_data, snp_pos_fmt=None, snp_ref_fmt=None, miss_fill=2, return
     mat_vcf_2d[missing_mask] = miss_fill
 
     # return npy matrix
-    if return_vcf_idx:
-        return mat_vcf_2d, vcf_idx
+    if return_idx:
+        return mat_vcf_2d, vcf_idx, fmt_idx
 
     return mat_vcf_2d
 
-def cM2nsnp(cM, chm, chm_len_pos, genetic_map_file):
-    
-    gen_map_df = pd.read_csv(genetic_map_file, sep="\t", comment="#", header=None, dtype="str")
+def read_genetic_map(genetic_map_path, chm=None):
+
+    gen_map_df = pd.read_csv(genetic_map_path, sep="\t", comment="#", header=None, dtype="str")
     gen_map_df.columns = ["chm", "pos", "pos_cm"]
     gen_map_df = gen_map_df.astype({'chm': str, 'pos': np.int64, 'pos_cm': np.float64})
-    gen_map_df = gen_map_df[gen_map_df.chm == chm]
+    if chm is not None:
+        gen_map_df = gen_map_df[gen_map_df.chm == chm]
+
+    return gen_map_df
+
+def cM2nsnp(cM, chm_len_pos, genetic_map, chm=None):
+
+    if type(genetic_map) == str:
+        if chm is not None:
+            gen_map_df = read_genetic_map(genetic_map, chm)
+        else:
+            print("Need chromosome number to read genetic map")
+    else:
+        gen_map_df = genetic_map
 
     chm_len_cM = np.array(gen_map_df["pos_cm"])[-1]
     snp_len = int(round(cM*(chm_len_pos/chm_len_cM)))
@@ -208,6 +223,7 @@ def fb2proba(path_to_fb, n_wind=None):
 def update_vcf(vcf_data, mask=None, Updates=None):
 
     out = vcf_data.copy()
+    
     if mask is not None:
         for key in vcf_data.keys():
             if key != "samples":
@@ -221,13 +237,11 @@ def update_vcf(vcf_data, mask=None, Updates=None):
     return out
 
 # -------------- numpy to vcf utils --------------
-
-
 def get_name(name_len=8):
     letters = string.ascii_lowercase + string.ascii_uppercase + string.digits
     return ''.join(random.choice(letters) for i in range(name_len)) 
 
-def npy_to_vcf(reference, npy, results_file):
+def npy_to_vcf(reference, npy, results_file, verbose=False):
     """
     - reference: str path to reference file which provides metadata for the results
                  or alternatively, a allel.read_vcf output
@@ -246,50 +260,41 @@ def npy_to_vcf(reference, npy, results_file):
     NOTE: New to production. Has not been bullet-tested.
     """
     
+    if results_file.split(".")[-1] not in [".vcf", ".bcf"]:
+        results_file += ".vcf"
+
     # read in the input vcf data
     if type(reference) == str:
         data = allel.read_vcf(reference)
     else:
-        data = reference
+        data = reference.copy()
     
     # infer chromosome length and number of samples
+    npy = npy.astype(int)
     chmlen, _, _ = data["calldata/GT"].shape
     h, c = npy.shape
-
-    assert chmlen == c, "reference and numpy matrix not compatible"
-
     n = h//2
+    assert chmlen == c, "reference (" + str(chmlen) + ") and numpy matrix (" + str(c) + ") not compatible"
 
-    # TODO: Add .vcf at the end if not .vcf or .bcf
-    
-    # TODO: Make use o samples?
-    if "samples" in list(data.keys()):
+    # Keep sample names if appropriate
+    if "samples" in list(data.keys()) and len(data["samples"]) == n:
+        if verbose:
+            print("Using same sample names")
         data_samples = data["samples"]
-        del data["samples"]
     else:
         data_samples = [get_name() for _ in range(n)]
 
-
     # metadata 
-
-    # create a dataframe with npy data
-    df = pd.DataFrame() # .from_dict(data)
-
-    for key in data.keys():
-        # print(key)
-        # print(data[key])
-        if len(data[key].shape) == 1 and len(data[key]) == chmlen:
-            df[key] = data[key]
-    
-    # df["CHROM"]  = data["variants/CHROM"]
-    # df['POS']    = data["variants/POS"]
-    # df["ID"]     = data["variants/ID"]
-    # df["REF"]    = data["variants/REF"]
-    # df["VAR"]    = data["variants/ALT"][:,0] # ONLY THE FIRST SINCE WE ONLY CARE ABOUT BI-ALLELIC SNPS HERE FOR NOW
-    # df["QUAL"]   = data["variants/QUAL"]
-    # df["FILTER"] = ["PASS"]*chmlen
-    # df["INFO"]   = ["."]*chmlen
-    # df["FORMAT"] = ["GT"]*chmlen
+    df = pd.DataFrame()
+    df["CHROM"]  = data["variants/CHROM"]
+    df['POS']    = data["variants/POS"]
+    df["ID"]     = data["variants/ID"]
+    df["REF"]    = data["variants/REF"]
+    df["VAR"]    = data["variants/ALT"][:,0] # ONLY THE FIRST SINCE WE ONLY CARE ABOUT BI-ALLELIC SNPS HERE FOR NOW
+    df["QUAL"]   = data["variants/QUAL"]
+    df["FILTER"] = ["PASS"]*chmlen
+    df["INFO"]   = ["."]*chmlen
+    df["FORMAT"] = ["GT"]*chmlen
     
     # genotype data for each sample
     for i in range(n):
@@ -298,16 +303,15 @@ def npy_to_vcf(reference, npy, results_file):
         maternal = npy[i*2,:].astype(str) # maternal is the first
         paternal = npy[i*2+1,:].astype(str) # paternal is the second
 
-        # create "maternal | paternal"
+        # create "maternal|paternal"
         lst = [maternal, ["|"]*chmlen, paternal]
         genotype_person = list(map(''.join, zip(*lst)))
-
-        # get a random name and assign a column to them
-        # df[get_name()] = genotype_person
         df[data_samples[i]] = genotype_person
 
-    # write results
-    # metadata
+    if verbose:
+        print("writing vcf data in "+results_file)
+
+    # write header
     with open(results_file,"w") as f:
         f.write("##fileformat=VCFv4.1\n")
         f.write("##source=pyadmix (XGMix)\n")
