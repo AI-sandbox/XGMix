@@ -14,7 +14,7 @@ import xgboost as xgb
 from Utils.utils import run_shell_cmd, join_paths, read_vcf, vcf_to_npy, npy_to_vcf, update_vcf 
 from Utils.utils import cM2nsnp, get_num_outs, read_genetic_map
 from Utils.preprocess import load_np_data, data_process, get_gen_0
-from Utils.postprocess import get_meta_data, write_msp_tsv
+from Utils.postprocess import get_meta_data, write_msp_tsv, write_fb_tsv
 from Utils.visualization import plot_cm, CM
 from Utils.Calibration import calibrator_module, normalize_prob
 from Utils.XGMix import XGMIX
@@ -194,6 +194,8 @@ def main(args, verbose=True, **kwargs):
     # gotta be careful if using rm_simulated_data. NOTE
 
     output_path = args.output_basename if instance_name == "" else join_paths(args.output_basename,instance_name)
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     gen_map_df = read_genetic_map(args.genetic_map_file, args.chm)
 
     mode = args.mode # this needs to be done. master change 1.
@@ -287,8 +289,10 @@ def main(args, verbose=True, **kwargs):
             query_vcf_data = update_vcf(query_vcf_data, mask=vcf_idx, Updates=U)
             query_phased_prefix = output_path + "/" + "query_file_phased"
             npy_to_vcf(query_vcf_data, X_query_phased[:,fmt_idx], query_phased_prefix)
+            proba_query_window = model.predict_proba(X_query_phased)
         else: 
             label_pred_query_window = model.predict(X_query)
+            proba_query_window = model.predict_proba(X_query)
 
         # writing the result to disc
         if verbose:
@@ -296,8 +300,10 @@ def main(args, verbose=True, **kwargs):
         meta_data = get_meta_data(args.chm, model.snp_pos,
                                 query_vcf_data['variants/POS'], model.num_windows,
                                 model.win, gen_map_df)
-        msp_prefix = output_path + "/" + args.output_basename
-        write_msp_tsv(msp_prefix, meta_data, label_pred_query_window, model.population_order, query_vcf_data['samples'])
+        # out_prefix = output_path + "/" + args.output_basename
+        out_prefix = output_path + "/" + output_path.split("/")[-1]
+        write_msp_tsv(out_prefix, meta_data, label_pred_query_window, model.population_order, query_vcf_data['samples'])
+        write_fb_tsv(out_prefix, meta_data, proba_query_window, model.population_order, query_vcf_data['samples'])
 
     if mode=="train" and rm_simulated_data:
         if verbose:

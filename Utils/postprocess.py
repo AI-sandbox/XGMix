@@ -60,8 +60,10 @@ def get_meta_data(chm, model_pos, query_pos, n_wind, wind_size, gen_map_df):
 
     # Concat with prediction table
     meta_data = np.array([chm_array, spos, epos, sgpos, egpos, n_snps]).T
+    meta_data_df = pd.DataFrame(meta_data)
+    meta_data_df.columns = ["chm", "spos", "epos", "sgpos", "egpos", "n snps"]
 
-    return meta_data
+    return meta_data_df
 
 def get_samples_from_msp_df(msp_df):
     """Function for getting sample IDs from a pandas DF containing the output data"""
@@ -80,17 +82,44 @@ def get_samples_from_msp_df(msp_df):
     
 def write_msp_tsv(msp_prefix, meta_data, pred_labels, populations, query_samples):
     
-    msp_data = np.concatenate([meta_data, pred_labels.T], axis=1).astype(str)
-    meta_col_names = ["chm", "spos", "epos", "sgpos", "egpos", "n snps"]
+    msp_data = np.concatenate([np.array(meta_data), pred_labels.T], axis=1).astype(str)
     
     with open(msp_prefix+".msp.tsv", 'w') as f:
         # first line (comment)
         f.write("#Subpopulation order/codes: ")
         f.write("\t".join([str(pop)+"="+str(i) for i, pop in enumerate(populations)])+"\n")
         # second line (comment/header)
-        f.write("#"+"\t".join(meta_col_names) + "\t")
+        f.write("#"+"\t".join(meta_data.columns) + "\t")
         f.write("\t".join([str(s) for s in np.concatenate([[s+".0",s+".1"] for s in query_samples])])+"\n")
         # rest of the lines (data)
         for l in range(msp_data.shape[0]):
             f.write("\t".join(msp_data[l,:]))
             f.write("\n")
+
+def write_fb_tsv(fb_prefix, meta_data, proba, ancestry, query_samples):
+    
+    n_rows = meta_data.shape[0]
+
+    pp = np.round(np.mean(np.array(meta_data[["spos", "epos"]],dtype=int),axis=1)).astype(int)
+    gp = np.mean(np.array(meta_data[["sgpos", "egpos"]],dtype=float),axis=1).astype(float)
+
+    fb_meta_data = pd.DataFrame()
+    fb_meta_data["chromosome"] = meta_data["chm"]
+    fb_meta_data["physical position"] = pp
+    fb_meta_data["genetic_position"]  = gp
+    fb_meta_data["genetic_marker_index"] = np.repeat(".", n_rows)
+
+    fb_prob_header = [":::".join([q,h,a]) for q in query_samples for h in ["hap1", "hap2"] for a in ancestry]
+    fb_prob = np.swapaxes(proba,1,2).reshape(-1, n_rows).T
+    fb_prob_df = pd.DataFrame(fb_prob)
+    fb_prob_df.columns = fb_prob_header
+
+    fb_df = pd.concat((fb_meta_data.reset_index(drop=True), fb_prob_df),axis=1)
+
+    with open(fb_prefix+".fb.tsv", 'w') as f:
+        # header
+        f.write("#reference_panel_population:\t")
+        f.write("\t".join(ancestry)+"\n")
+        fb_df.to_csv(f, sep="\t", index=False)
+
+    return

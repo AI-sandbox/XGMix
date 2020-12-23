@@ -6,7 +6,10 @@ import time
 import seaborn as sns
 import sys
 
-from XGFix.phasing import *
+try:
+  from phasing import *
+except ModuleNotFoundError:
+  from XGFix.phasing import *
 
 # Value function calculation
 def seq_left_end(S, idx): 

@@ -1,5 +1,4 @@
 import allel
-from collections import Counter
 import gzip
 import numpy as np
 import os
@@ -42,7 +41,7 @@ def join_paths(p1,p2="",verb=True):
 
 def read_vcf(vcf_file, chm=None, fields=None, verbose=False):
     """
-    Reads vcf files into a dictionary
+    Wrapper function for reading vcf files into a dictionary
     fields="*" extracts more information, take out if ruled unecessary
     """
     if fields is None:
@@ -240,7 +239,6 @@ def update_vcf(vcf_data, mask=None, Updates=None):
 
     return out
 
-# -------------- numpy to vcf utils --------------
 def get_name(name_len=8):
     letters = string.ascii_lowercase + string.ascii_uppercase + string.digits
     return ''.join(random.choice(letters) for i in range(name_len)) 

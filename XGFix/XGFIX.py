@@ -2,14 +2,21 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import numpy as np
+import pickle
 import seaborn as sns
 import sys
 from time import time
 
-from XGFix.phasing import *
-from XGFix.simple_switch import simple_switch
-from XGFix.Calibration import calibrator_module, normalize_prob
-from Utils.utils import fb2proba
+try:
+    # if calling from XGMix
+    from Utils.utils import read_vcf, vcf_to_npy, fb2proba, npy_to_vcf
+    from XGFix.phasing import *
+    from XGFix.simple_switch import simple_switch
+except ModuleNotFoundError:
+    # if calling from XGFix
+    from utils import read_vcf, vcf_to_npy, fb2proba, npy_to_vcf
+    from phasing import *
+    from simple_switch import simple_switch
 
 def mask_base_prob(base_prob, d=0):
     """
@@ -74,6 +81,16 @@ def base_to_smooth_data(base_prob, sws, pad_size=None, labels=None):
 
     return windowed_data, windowed_labels
 
+def load_smoother(path_to_smoother, verbose=True):
+    if verbose:
+        print("Loading smoother...")
+    if path_to_smoother[-3:]==".gz":
+        with gzip.open(path_to_smoother, 'rb') as unzipped:
+            smoother = pickle.load(unzipped)
+    else:
+        smoother = pickle.load(open(path_to_smoother,"rb"))
+
+    return smoother
 
 def XGFix(M, P, base_prob, smoother, max_it=50, non_lin_s=0, check_criterion="disc_smooth", max_center_offset=0, prob_comp="max", d=None, prior_switch_prob = 0.5,
             naive_switch=None, end_naive_switch=None, padding=True, verbose=False):
@@ -229,3 +246,65 @@ def XGFix(M, P, base_prob, smoother, max_it=50, non_lin_s=0, check_criterion="di
         print(); print("runtime:", np.round(time()-st))
     
     return X_m, X_p, Y_m, Y_p, history, XGFix_tracker
+
+def main(query_file, fb_file, smoother_file, output_basename, chm, n_windows=None, verbose=False):
+
+    # Read X from query file
+    # TODO: does the npy need some modification? 
+    query_vcf_data = read_vcf(query_file, chm=chm, fields="*")
+    X = vcf_to_npy(query_vcf_data)
+    H, C = X.shape
+    N = H//2
+
+    # Load a smoother
+    S = load_smoother(smoother_file)
+
+    # Read base_prob from fb
+    base_prob = fb2proba(fb_file, n_wind=n_windows)
+    print(base_prob.shape)
+    H_, W, A = base_prob.shape
+    base_prob = base_prob.reshape(H//2,2,W,A)
+    assert H == H_, "Number of haplotypes from base probabilities must match number of query haplotypes"
+
+    # Phase
+    X_phased = np.zeros((N,2,C), dtype=int)
+    Y_phased = np.zeros((N,2,W), dtype=int)
+    for i, X_i in enumerate(X.reshape(N,2,C)):
+        sys.stdout.write("\rPhasing individual %i/%i" % (i+1, N))
+        X_m, X_p = np.copy(X_i)
+        X_m, X_p, Y_m, Y_p, history, XGFix_tracker = XGFix(X_m, X_p, base_prob=base_prob[i], smoother=S,
+                                                           check_criterion="disc_base", verbose=True)
+        X_phased[i] = np.copy(np.array((X_m,X_p)))
+        Y_phased[i] = np.copy(np.array((Y_m,Y_p)))
+    X_phased = X_phased.reshape(H,C)
+    print()
+
+    # Write results
+    if verbose:
+        print("Writing phased SNPs to disc...")
+    npy_to_vcf(query_vcf_data, X_phased, output_basename)
+
+    return
+
+if __name__ == "__main__":
+
+    # TODO: Ask for citation
+
+    # Infer mode from number of arguments (could be extended to connect with XGMix)
+    mode = None
+    if len(sys.argv) == 6:
+        mode = "" 
+
+    # Usage message
+    if mode is None:
+        if len(sys.argv) > 1:
+            print("Error: Incorrect number of arguments.")
+        print("Usage:")
+        print("   $ python3 XGFIX.py <query_file> <fb_file> <smoother_file> <output_basename> <chm>")
+        sys.exit(0)
+
+    _, query_file, fb_file, smoother_file, output_basename, chm = sys.argv
+
+    main(query_file, fb_file, smoother_file, output_basename, chm, verbose=True)
+    # main(*sys.argv)
+    

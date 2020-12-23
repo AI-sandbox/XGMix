@@ -62,7 +62,6 @@ def haplo_tile_plot(haplos, pop_order=None, bbox_to_anchor=[1.2,1.0]):
     y_ticks_new = ["P" if i%2 else "M" for i in range(n_haplo)]
     y_ticks_new = [tick+"'" if t%4>1 else tick for t, tick in enumerate(y_ticks_new)]
     plt.setp(ax, yticks=range(n_haplo), yticklabels=y_ticks_new)
-    plt.title("H")
 
     if pop_order is not None:
         handles, labels = scat.legend_elements()

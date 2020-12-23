@@ -29,7 +29,7 @@ $ python3 XGMIX.py <query_file> <genetic_map_file> <output_basename> <chr_nr> <p
 where 
 - <*query_file*> is a .vcf or .vcf.gz file containing the query haplotypes which are to be analyzed (see example in the **demo_data/** folder)
 - <*genetic_map_file*> is the genetic map file (see example in the **demo_data/** folder)
-- <*output_basename*>.msp.tsv. is where the predictions are written (see details in **Output** below and an example in the **demo_data/** folder)
+- <*output_basename*>.msp.tsv and <*output_basename*>.fb.tsv is where the predictions are written (see details in **Output** below and an example in the **demo_data/** folder)
 - <*chr_nr*> is the chromosome number
 - <*phase*> is either True or False corresponding to the intent of using the predicted ancestry for phasing (see details in **Phasing** below and in the **XGFix/** folder)
 - <*path_to_model*> is a path to the model used for predictions (see **Pre-trained Models** below)
@@ -58,10 +58,10 @@ They include general settings, simulation settings and model settings. More deta
 ## Output
 
 ### *<output_basename>*.msp.tsv
-The first line is a comment line, that specifies the order and encoding of populations: eg:
+The first line is a comment line, that specifies the order and encoding of populations, eg:
 #Sub_population order/code: golden_retriever=0 labrador_retriever=1 poodle poodle_small=2
 
-The second line specifies the column names, and every following line marks the genome position.
+The second line specifies the column names, and every following line marks a genome position.
 
 The first 6 columns specify
 - the chromosome
@@ -70,6 +70,20 @@ The first 6 columns specify
 - number of *<query_file>* SNP positions that are included in interval
 
 The remaining columns give the predicted reference panel population for the given interval. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes) and therefore the total number of columns in the file is 6 + 2*(number of genotypes)
+
+### *<output_basename>*.fb.tsv
+The first line is a comment line, that specifies the order of the populations, eg:
+#reference_panel_population:	AFR	EUR	NAT
+
+The second line specifies the column names, and every following line marks a genome position.
+
+The first 4 columns specify
+- the chromosome
+- mean of genetic marker's physical position in basepair units
+- mean of genetic position in centiMorgans
+- genetic marker index
+
+The remaining columns represent the query hapotypes and reference panel population and each line markes the estimated probability of the given genome position coming from the population. A genotype has two haplotypes, so the number of predictions for a genotype is 2*(number of genotypes)*(number of reference populations) and therefore the total number of columns in the file is 6 + 2*(number of genotypes)*(number of reference populations).
 
 ### Model and simulated data
 When training a model, the resulting model will be stored in **./models**. That way it can be re-used for analyzing another dataset.
