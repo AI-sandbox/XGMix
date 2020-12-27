@@ -85,9 +85,11 @@ def train(chm, model_name, genetic_map_df, data_path, generations, window_size_c
     model_repo = join_paths(model_repo, model_name, verb=False)
     model_path = model_repo + "/" + model_name + ".pkl"
 
+    val_generations = [gen for gen in generations if gen != 0]
+
     train1_paths = [data_path + "/chm" + chm + "/simulation_output/train1/gen_" + str(gen) + "/" for gen in generations]
     train2_paths = [data_path + "/chm" + chm + "/simulation_output/train2/gen_" + str(gen) + "/" for gen in generations]
-    val_paths    = [data_path + "/chm" + chm + "/simulation_output/val/gen_"    + str(gen) + "/" for gen in generations]
+    val_paths    = [data_path + "/chm" + chm + "/simulation_output/val/gen_"    + str(gen) + "/" for gen in val_generations]
 
     position_map_file   = data_path + "/chm"+ chm + "/positions.txt"
     reference_map_file  = data_path + "/chm"+ chm + "/references.txt"
