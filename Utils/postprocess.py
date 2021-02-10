@@ -58,10 +58,20 @@ def get_meta_data(chm, model_pos, query_pos, n_wind, wind_size, gen_map_df):
     window_count = Counter(wind_index)
     n_snps = [window_count[w] for w in range(n_wind)]
 
+    # # Concat with prediction table
+    # meta_data = np.array([chm_array, spos, epos, sgpos, egpos, n_snps]).T
+    # meta_data_df = pd.DataFrame(meta_data)
+    # meta_data_df.columns = ["chm", "spos", "epos", "sgpos", "egpos", "n snps"]
+
     # Concat with prediction table
-    meta_data = np.array([chm_array, spos, epos, sgpos, egpos, n_snps]).T
-    meta_data_df = pd.DataFrame(meta_data)
-    meta_data_df.columns = ["chm", "spos", "epos", "sgpos", "egpos", "n snps"]
+    meta_data_df = pd.DataFrame({
+        "chm": chm_array,
+        "spos": spos,
+        "epos": epos, 
+        "sgpos": sgpos, 
+        "egpos": egpos, 
+        "n snps": n_snps
+    })
 
     return meta_data_df
 
@@ -100,21 +110,22 @@ def write_fb_tsv(fb_prefix, meta_data, proba, ancestry, query_samples):
     
     n_rows = meta_data.shape[0]
 
-    pp = np.round(np.mean(np.array(meta_data[["spos", "epos"]],dtype=int),axis=1)).astype(int)
-    gp = np.mean(np.array(meta_data[["sgpos", "egpos"]],dtype=float),axis=1).astype(float)
+    pp = np.round(np.mean(np.array(meta_data[["spos","epos"]],dtype=int),axis=1)).astype(int)
+    gp = np.mean(np.array(meta_data[["sgpos","egpos"]],dtype=float),axis=1).astype(float)
 
-    fb_meta_data = pd.DataFrame()
-    fb_meta_data["chromosome"] = meta_data["chm"]
-    fb_meta_data["physical position"] = pp
-    fb_meta_data["genetic_position"]  = gp
-    fb_meta_data["genetic_marker_index"] = np.repeat(".", n_rows)
+    fb_meta_data = pd.DataFrame({
+        "chromosome": meta_data["chm"],
+        "physical position": pp,
+        "genetic_position": gp,
+        "genetic_marker_index": np.repeat(".", n_rows)
+    })
 
     fb_prob_header = [":::".join([q,h,a]) for q in query_samples for h in ["hap1", "hap2"] for a in ancestry]
     fb_prob = np.swapaxes(proba,1,2).reshape(-1, n_rows).T
-    fb_prob_df = pd.DataFrame(fb_prob)
-    fb_prob_df.columns = fb_prob_header
+    fb_prob_df = pd.DataFrame(fb_prob, columns=fb_prob_header)
+    # fb_prob_df.columns = fb_prob_header
 
-    fb_df = pd.concat((fb_meta_data.reset_index(drop=True), fb_prob_df),axis=1)
+    fb_df = pd.concat( (fb_meta_data.reset_index(drop=True),fb_prob_df), axis=1)
 
     with open(fb_prefix+".fb.tsv", 'w') as f:
         # header
