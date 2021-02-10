@@ -57,6 +57,17 @@ def read_vcf(vcf_file, chm=None, fields=None, verbose=False):
         chmlen, n, _ = data["calldata/GT"].shape
         print("File read:", chmlen, "SNPs for", n, "individuals")
 
+    if data is None:
+        if chm is not None:
+            print(
+                "Warning: Found no data in vcf file labeled with chromosome " + str(chm) + "..." + 
+                "Trying again by fetching all data from file. " +
+                "This could potentially include data from other chromosomes."
+            )
+            return read_vcf(vcf_file, fields="*")
+        else:
+            print("Warning: No data found in vcf file")
+
     return data
 
 def sample_map_to_matrix(map_path):
