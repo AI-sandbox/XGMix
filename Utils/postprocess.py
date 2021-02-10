@@ -42,10 +42,11 @@ def get_meta_data(chm, model_pos, query_pos, n_wind, wind_size, gen_map_df):
     chm_array = [chm]*n_wind
 
     # start and end pyshical positions
-    spos_idx = np.arange(0, model_chm_len, wind_size)[:-1]
-    epos_idx = np.concatenate([np.arange(0, model_chm_len, wind_size)[1:-1],np.array([model_chm_len])])-1
+    spos_idx = np.arange(0, model_chm_len+1, wind_size)[:-1]
+    epos_idx = np.concatenate([np.arange(0, model_chm_len+1, wind_size)[1:-1],np.array([model_chm_len])])-1
     spos = model_pos[spos_idx]
     epos = model_pos[epos_idx]
+    assert len(spos) == n_wind and len(epos) == n_wind, "window positions and number of windows don't match"
 
     # start and end positions in cM (using linear interpolation, truncate ends of map file)
     end_pts = tuple(np.array(gen_map_df.pos_cm)[[0,-1]])
@@ -57,11 +58,6 @@ def get_meta_data(chm, model_pos, query_pos, n_wind, wind_size, gen_map_df):
     wind_index = [min(n_wind-1, np.where(q == sorted(np.concatenate([epos, [q]])))[0][0]) for q in query_pos]
     window_count = Counter(wind_index)
     n_snps = [window_count[w] for w in range(n_wind)]
-
-    # # Concat with prediction table
-    # meta_data = np.array([chm_array, spos, epos, sgpos, egpos, n_snps]).T
-    # meta_data_df = pd.DataFrame(meta_data)
-    # meta_data_df.columns = ["chm", "spos", "epos", "sgpos", "egpos", "n snps"]
 
     # Concat with prediction table
     meta_data_df = pd.DataFrame({
