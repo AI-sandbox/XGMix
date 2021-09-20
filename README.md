@@ -1,3 +1,16 @@
+-----
+-----
+-----
+-----
+-----
+# This repository is depricated. 
+# Please use [Gnomix](https://github.com/AI-sandbox/gnomix) for the updated and supported version. 
+-----
+-----
+-----
+-----
+-----
+
 # XGMix: Local-Ancestry Inference With Stacked XGBoost
 
 This repository includes a python implemenation of XGMix, a gradient boosting tree-based local-ancestry inference (ancestry deconvolution) method. 
@@ -102,9 +115,7 @@ The models are trained on hg build 37 references from the following biogeographi
 
 ## Phasing
 
-
 ![Visualization of the process](XGFix/figures/XGFix.gif)
-
 
 Accurate phasing of genomic data is crucial for human demographic modeling and identity-by-descent analyses. It has been shown that leveraging information about an individual’s genomic ancestry improves performance of current phasing algorithms. XGFix is a method that uses local Ancestry Inference (LAI) to do exactly that. If you suspect your data might be badly phased (often the case when reference panel is small and/or diverse), we recommend using this option. See the **XGFix/** folder for more details. 
 
@@ -114,34 +125,3 @@ Sequenced haplotypes phased with a phasing software (left). LAI used to label ha
 ## License
 
 **NOTICE**: This software is available for use free of charge for academic research use only. Commercial users, for profit companies or consultants, and non-profit institutions not qualifying as "academic research" must contact the [Stanford Office of Technology Licensing](https://otl.stanford.edu/) for a separate license. This applies to this repository directly and any other repository that includes source, executables, or git commands that pull/clone this repository as part of its function. Such repositories, whether ours or others, must include this notice. Academic users may fork this repository and modify and improve to suit their research needs, but also inherit these terms and must include a licensing notice to that effect.
-
-## Cite
-
-#### When using this software, please cite: Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A., "XGMix: Local-Ancestry Inference With Stacked XGBoost," International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4AH).
-
-https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1
-
-```
-@article{kumar2020xgmix,
-  title={XGMix: Local-Ancestry Inference With Stacked XGBoost},
-  author={Kumar, Arvind and Montserrat, Daniel Mas and Bustamante, Carlos and Ioannidis, Alexander},
-  journal={International Conference of Learning Representations Workshops, AI4AH},
-  year={2020}
-}
-```
-
-#### You can also include its companion paper: Montserrat, D.M., Kumar, A., Bustamante, C. and Ioannidis, A., "Addressing Ancestry Disparities in Genomic Medicine: A Geographic-aware Algorithm," International Conference on Learning Representations Workshops (ICLR, 2020, Workshop AI4CC).
-
-https://arxiv.org/pdf/2004.12053.pdf
-
-```
-@article{montserrat2020addressing,
-  title={Addressing Ancestry Disparities in Genomic Medicine: A Geographic-aware Algorithm},
-  author={Montserrat, Daniel Mas and Kumar, Arvind and Bustamante, Carlos and Ioannidis, Alexander},
-  journal={International Conference of Learning Representations Workshops, AI4CC},
-  year={2020}
-}
-```
-
-
-
