@@ -1,5 +1,7 @@
-# This repository is deprecated. 
+# NOTE: This repository is deprecated.
 # Please use [Gnomix](https://github.com/AI-sandbox/gnomix) for the updated and supported version. 
+-----
+-----
 -----
 -----
 -----
