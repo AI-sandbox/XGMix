@@ -28,12 +28,7 @@ from config import verbose, run_simulation, founders_ratios, generations, rm_sim
 from config import model_name, window_size_cM, smooth_size, missing, n_cores, r_admixed
 from config import retrain_base, calibrate, context_ratio, instance_name, mode_filter_size, smooth_depth
 
-CLAIMER = 'When using this software, please cite: \n' + \
-          'Kumar, A., Montserrat, D.M., Bustamante, C. and Ioannidis, A. \n' + \
-          '"XGMix: Local-Ancestry Inference With Stacked XGBoost" \n' + \
-          'International Conference on Learning Representations Workshops \n' + \
-          'ICLR, 2020, Workshop AI4AH \n' + \
-          'https://www.biorxiv.org/content/10.1101/2020.04.21.053876v1'
+DEPRECATED = 'NOTE: THIS SOFTWARE IS DEPRECATED, PLEASE USE GNOMIX (https://github.com/AI-sandbox/gnomix) INSTEAD'
 
 FAST_ADMIX = True
 np.random.seed(94305)
@@ -321,7 +316,7 @@ if __name__ == "__main__":
 
     # Citation
     print("-"*80+"\n"+"-"*35+"  XGMix  "+"-"*36 +"\n"+"-"*80)
-    print(CLAIMER)
+    print(DEPRECATED)
     print("-"*80+"\n"+"-"*80+"\n"+"-"*80)
 
     # Infer mode from number of arguments
