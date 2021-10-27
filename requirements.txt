@@ -1,6 +1,6 @@
 cycler==0.10.0
 Cython==0.29.21
-dask==2.20.0
+dask==2021.10.0
 joblib==0.16.0
 kiwisolver==1.2.0
 matplotlib==3.3.0
